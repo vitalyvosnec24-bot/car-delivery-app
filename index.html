@@ -1,800 +1,1587 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <!-- Критически важен для корректного отображения на мобильных устройствах -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Доставка авто — BMW X5</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>AutoRoute — Delivery Tracker</title>
 
-  <!-- ===== Telegram Mini App SDK ===== -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- ===== Leaflet.js (карта) — стабильная версия 1.9.4 ===== -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* ============================================================
-       RESET & БАЗОВЫЕ СТИЛИ
-    ============================================================ */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    /* ═══════════════════════════════════════════════
+       ДИЗАЙН-СИСТЕМА
+    ═══════════════════════════════════════════════ */
     :root {
-      /* --- Цвета из темы Telegram (автоматически подставляются SDK) --- */
-      --bg:          var(--tg-theme-bg-color,          #FFFFFF);
-      --bg-secondary:var(--tg-theme-secondary-bg-color,#F2F2F7);
-      --text:        var(--tg-theme-text-color,         #1C1C1E);
-      --hint:        var(--tg-theme-hint-color,         #8E8E93);
-      --link:        var(--tg-theme-link-color,         #007AFF);
-      --btn:         var(--tg-theme-button-color,       #007AFF);
-      --btn-text:    var(--tg-theme-button-text-color,  #FFFFFF);
-
-      /* --- Кастомная палитра --- */
-      --success:     #34C759;
-      --active:      #007AFF;
-      --pending:     #C7C7CC;
-      --card-radius: 18px;
-      --shadow:      0 4px 24px rgba(0,0,0,0.08);
-      --font:        -apple-system, "SF Pro Display", "Roboto", "Helvetica Neue", sans-serif;
+      --bg:          #0A0A12;
+      --bg2:         #12121E;
+      --bg3:         #1A1A2A;
+      --text:        #F0F0FF;
+      --hint:        #5A5A80;
+      --accent:      #5B7FFF;
+      --accent2:     #8B5CF6;
+      --success:     #34D399;
+      --warning:     #FBBF24;
+      --danger:      #F87171;
+      --card:        rgba(255,255,255,0.04);
+      --card-border: rgba(255,255,255,0.08);
+      --radius:      20px;
+      --radius-sm:   12px;
+      --font:        -apple-system,"SF Pro Display","Roboto","Helvetica Neue",sans-serif;
+      --shadow:      0 8px 32px rgba(0,0,0,0.5);
+      --transition:  0.28s cubic-bezier(0.4,0,0.2,1);
     }
 
-    html, body {
-      height: 100%;
-      background: var(--bg-secondary);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 15px;
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
+    /* Поддержка светлой TG-темы */
+    body.tg-light {
+      --bg:          #F4F4FA;
+      --bg2:         #FFFFFF;
+      --bg3:         #EEEEF6;
+      --text:        #1A1A2E;
+      --hint:        #8888A8;
+      --card:        rgba(0,0,0,0.03);
+      --card-border: rgba(0,0,0,0.07);
+      --shadow:      0 8px 32px rgba(0,0,0,0.08);
     }
 
-    /* ============================================================
-       СКРОЛЛ-КОНТЕЙНЕР (весь контент скроллится, кнопка закреплена)
-    ============================================================ */
-    .page-wrapper {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-      padding-bottom: 88px; /* место под кнопку */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{
+      min-height:100vh; background:var(--bg); color:var(--text);
+      font-family:var(--font); font-size:15px;
+      -webkit-font-smoothing:antialiased; overflow-x:hidden;
     }
 
-    /* ============================================================
-       ШАПКА (HEADER)
-    ============================================================ */
-    .header {
-      background: var(--bg);
-      padding: 20px 16px 16px;
-      border-bottom: 1px solid rgba(0,0,0,0.06);
+    /* ── Стеклянная карточка ── */
+    .glass{
+      background:var(--card); border:1px solid var(--card-border);
+      border-radius:var(--radius); backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px);
     }
 
-    /* Строка "Статус" */
-    .header__status-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 12px;
+    /* ── Градиентный текст ── */
+    .g-text{
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--active);
-      animation: pulse 1.8s ease-in-out infinite;
-      flex-shrink: 0;
+    /* ── Кнопки ── */
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:14px 22px; border:none; border-radius:var(--radius-sm);
+      cursor:pointer; font-size:15px; font-weight:700; font-family:var(--font);
+      transition:var(--transition); -webkit-tap-highlight-color:transparent;
+    }
+    .btn:active{transform:scale(0.97);opacity:0.85}
+    .btn-primary{
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff; box-shadow:0 4px 20px rgba(91,127,255,0.35);
+    }
+    .btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--card-border)}
+    .btn-danger{background:rgba(248,113,113,0.12);color:var(--danger);border:1px solid rgba(248,113,113,0.2)}
+    .btn-success{background:rgba(52,211,153,0.12);color:var(--success);border:1px solid rgba(52,211,153,0.2)}
+    .btn-sm{padding:8px 14px;font-size:13px;border-radius:10px}
+    .btn-full{width:100%}
+
+    /* ── Поля ввода ── */
+    .inp{
+      width:100%; padding:13px 16px;
+      background:var(--card); border:1px solid var(--card-border);
+      border-radius:var(--radius-sm); color:var(--text);
+      font-size:15px; font-family:var(--font); outline:none;
+      transition:var(--transition); -webkit-appearance:none;
+    }
+    .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,127,255,0.15)}
+    .inp::placeholder{color:var(--hint)}
+    select.inp{cursor:pointer}
+    textarea.inp{resize:none}
+    .lbl{
+      display:block; font-size:11px; font-weight:700; color:var(--hint);
+      text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;
+    }
+    .fg{margin-bottom:14px}
+
+    /* ── Бейджи ── */
+    .badge{
+      display:inline-flex; align-items:center; gap:5px;
+      padding:4px 10px; border-radius:100px;
+      font-size:12px; font-weight:700;
+    }
+    .b-blue  {background:rgba(91,127,255,0.15);color:#7FA8FF}
+    .b-green {background:rgba(52,211,153,0.15);color:#34D399}
+    .b-orange{background:rgba(251,191,36,0.15);color:#FBBF24}
+    .b-gray  {background:var(--bg3);           color:var(--hint)}
+    .b-red   {background:rgba(248,113,113,0.15);color:var(--danger)}
+    .b-purple{background:rgba(139,92,246,0.15);color:#A78BFA}
+
+    /* ═══════════════════════════════════════════════
+       ЭКРАН АВТОРИЗАЦИИ
+    ═══════════════════════════════════════════════ */
+    #auth-screen{
+      position:fixed; inset:0; z-index:9000;
+      background:var(--bg); display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:32px 24px;
+    }
+    .auth-logo{
+      font-size:64px; margin-bottom:24px;
+      animation:logoBounce 2s ease-in-out infinite;
+    }
+    @keyframes logoBounce{
+      0%,100%{transform:translateY(0) rotate(-5deg)}
+      50%{transform:translateY(-10px) rotate(5deg)}
+    }
+    .auth-title{font-size:28px;font-weight:800;text-align:center;margin-bottom:8px}
+    .auth-sub{font-size:15px;color:var(--hint);text-align:center;margin-bottom:40px;line-height:1.5}
+    .auth-card{
+      width:100%; max-width:360px;
+      background:var(--bg2); border:1px solid var(--card-border);
+      border-radius:var(--radius); padding:24px;
+    }
+    .auth-card-title{font-size:17px;font-weight:700;margin-bottom:16px;text-align:center}
+    .auth-error{
+      background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.2);
+      border-radius:10px; padding:10px 14px;
+      color:var(--danger); font-size:13px; margin-bottom:14px;
+      display:none;
+    }
+    .auth-hint{font-size:12px;color:var(--hint);text-align:center;margin-top:14px;line-height:1.5}
+
+    /* ═══════════════════════════════════════════════
+       ОСНОВНОЙ ИНТЕРФЕЙС (скрыт до авторизации)
+    ═══════════════════════════════════════════════ */
+    #app{display:none}
+    #app.visible{display:block}
+
+    /* ── Навигация ── */
+    .tab-bar{
+      position:fixed; bottom:0; left:0; right:0; z-index:1000;
+      display:flex;
+      padding:8px 16px calc(8px + env(safe-area-inset-bottom));
+      background:var(--bg2); border-top:1px solid var(--card-border);
+      backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    }
+    .tab-item{
+      flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;
+      padding:6px; border-radius:12px; cursor:pointer;
+      transition:var(--transition); background:none; border:none;
+      color:var(--hint); font-family:var(--font);
+      -webkit-tap-highlight-color:transparent;
+    }
+    .tab-item.active{color:var(--accent)}
+    .tab-icon{font-size:22px;line-height:1}
+    .tab-label{font-size:10px;font-weight:700;letter-spacing:0.3px}
+
+    /* ── Страницы ── */
+    .page{
+      display:none; padding-bottom:calc(80px + env(safe-area-inset-bottom));
+      min-height:100vh; animation:fadeUp 0.25s ease;
+    }
+    .page.active{display:block}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ═══════════════════════════════════════════════
+       СТРАНИЦА — ТРЕКЕР
+    ═══════════════════════════════════════════════ */
+
+    /* Hero */
+    .hero{
+      position:relative; overflow:hidden;
+      padding:20px 16px 24px;
+      background:linear-gradient(160deg,rgba(91,127,255,0.1) 0%,rgba(139,92,246,0.05) 100%);
+      border-bottom:1px solid var(--card-border);
+    }
+    .hero::before{
+      content:''; position:absolute; top:-80px; right:-80px;
+      width:250px; height:250px; border-radius:50%;
+      background:radial-gradient(circle,rgba(91,127,255,0.15) 0%,transparent 70%);
+      pointer-events:none;
+    }
+    .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+    .hero-status{display:flex;align-items:center;gap:7px}
+    .pulse-dot{
+      width:9px;height:9px;border-radius:50%;background:var(--success);
+      animation:pDot 2s ease-in-out infinite;
+    }
+    @keyframes pDot{
+      0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0.4)}
+      50%{box-shadow:0 0 0 7px rgba(52,211,153,0)}
+    }
+    .hero-status-txt{font-size:12px;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:0.5px}
+    .hero-car{font-size:26px;font-weight:800;letter-spacing:-0.5px;line-height:1.1;margin-bottom:4px}
+    .hero-vin{font-size:11px;font-weight:500;color:var(--hint);letter-spacing:1.2px;font-family:"SF Mono","Courier New",monospace;margin-bottom:16px}
+    .route-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .route-chip{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:7px 14px;border-radius:100px;font-size:13px;font-weight:700;
+      border:1px solid var(--card-border);background:var(--card);
+    }
+    .route-arr{display:flex;align-items:center;gap:3px}
+    .arr-line{width:24px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px}
+    .arr-head{color:var(--accent);font-size:14px}
+
+    /* Метрики */
+    .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px}
+    .metric{
+      padding:14px 10px;border-radius:var(--radius-sm);
+      background:var(--card);border:1px solid var(--card-border);text-align:center;
+    }
+    .metric-val{font-size:19px;font-weight:800;line-height:1.1}
+    .metric-lbl{font-size:10px;color:var(--hint);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-top:3px}
+    .metric-sub{font-size:10px;color:var(--hint);margin-top:2px}
+
+    /* Карта */
+    .map-sec{padding:0 16px 16px}
+    .sec-hdr{display:flex;justify-content:space-between;align-items:center;padding:16px 0 10px}
+    .sec-ttl{font-size:12px;font-weight:700;color:var(--hint);text-transform:uppercase;letter-spacing:0.8px}
+    .map-wrap{position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--card-border);box-shadow:var(--shadow)}
+    #map{height:300px;width:100%}
+    .map-pill{
+      position:absolute;top:10px;left:50%;transform:translateX(-50%);
+      z-index:900;white-space:nowrap;padding:6px 14px;border-radius:100px;
+      background:rgba(10,10,18,0.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+      font-size:12px;font-weight:600;color:#fff;border:1px solid rgba(255,255,255,0.1);
+      pointer-events:none;
     }
 
-    .status-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--active);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
+    /* KM прогресс */
+    .km-prog{
+      padding:14px 16px;background:var(--card);border:1px solid var(--card-border);
+      border-radius:var(--radius-sm);margin-top:10px;
     }
+    .km-row{display:flex;justify-content:space-between;margin-bottom:8px}
+    .km-lbl{font-size:12px;color:var(--hint);font-weight:600}
+    .km-val{font-size:12px;font-weight:800}
+    .prog-bar{height:6px;background:var(--bg3);border-radius:100px;overflow:hidden}
+    .prog-fill{
+      height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));
+      border-radius:100px;transition:width 1s cubic-bezier(0.4,0,0.2,1);
+    }
+    .km-ends{display:flex;justify-content:space-between;margin-top:6px}
+    .km-end{font-size:10px;color:var(--hint)}
 
-    /* Марка и модель */
-    .header__car-name {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      line-height: 1.15;
-      color: var(--text);
-      margin-bottom: 4px;
+    /* Страны маршрута */
+    .countries-strip{
+      display:flex;gap:6px;padding:0 16px 16px;overflow-x:auto;scrollbar-width:none;
     }
+    .countries-strip::-webkit-scrollbar{display:none}
+    .country-chip{
+      display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+      padding:6px 12px;border-radius:100px;font-size:12px;font-weight:600;
+      border:1px solid var(--card-border);background:var(--card);flex-shrink:0;
+    }
+    .country-chip.passed{border-color:rgba(91,127,255,0.3);background:rgba(91,127,255,0.08);color:var(--accent)}
+    .country-chip.active{
+      border-color:var(--accent);background:rgba(91,127,255,0.15);color:var(--accent);
+      box-shadow:0 0 0 3px rgba(91,127,255,0.1);
+    }
+    .country-chip.pending{color:var(--hint)}
 
-    /* VIN */
-    .header__vin {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--hint);
-      letter-spacing: 1px;
-      margin-bottom: 16px;
-      font-family: "SF Mono", "Courier New", monospace;
+    /* Таймлайн */
+    .tl-sec{padding:0 16px 16px}
+    .tl-wrap{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);overflow:hidden}
+    .tl-item{display:flex;gap:0;position:relative;padding:0 16px}
+    .tl-left{display:flex;flex-direction:column;align-items:center;width:42px;flex-shrink:0;padding-top:16px}
+    .tl-dot{
+      width:34px;height:34px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;z-index:1;position:relative;flex-shrink:0;
     }
+    .tl-dot.done   {background:rgba(52,211,153,0.12);border:2px solid rgba(52,211,153,0.4)}
+    .tl-dot.active {background:rgba(91,127,255,0.18);border:2px solid var(--accent);animation:glowDot 2s infinite}
+    .tl-dot.pending{background:var(--bg3);border:2px solid transparent}
+    @keyframes glowDot{
+      0%,100%{box-shadow:0 0 0 0 rgba(91,127,255,0.3)}
+      50%{box-shadow:0 0 0 8px rgba(91,127,255,0)}
+    }
+    .tl-line{width:2px;flex:1;min-height:16px;background:var(--card-border)}
+    .tl-item.done  .tl-line{background:rgba(52,211,153,0.3)}
+    .tl-item.active .tl-line{background:linear-gradient(to bottom,var(--accent),var(--card-border))}
+    .tl-body{flex:1;padding:14px 0 14px 14px;border-bottom:1px solid var(--card-border)}
+    .tl-item:last-child .tl-body{border-bottom:none}
+    .tl-title{font-size:15px;font-weight:700;line-height:1.3}
+    .tl-item.pending .tl-title{color:var(--hint)}
+    .tl-sub{font-size:13px;color:var(--hint);margin-top:3px}
+    .tl-item.active .tl-sub{color:var(--accent);font-weight:500}
+    .tl-date{font-size:11px;color:var(--hint);margin-top:5px;font-weight:500}
 
-    /* Маршрутные бейджи */
-    .route-badges {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+    /* Менеджер */
+    .mgr-sec{padding:0 16px 16px}
+    .mgr-card{
+      padding:16px;
+      background:linear-gradient(135deg,rgba(91,127,255,0.08),rgba(139,92,246,0.08));
+      border:1px solid rgba(91,127,255,0.15);border-radius:var(--radius);
+      display:flex;align-items:center;gap:14px;
     }
+    .mgr-ava{
+      width:50px;height:50px;border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;
+      font-size:22px;flex-shrink:0;
+    }
+    .mgr-info{flex:1}
+    .mgr-name{font-size:15px;font-weight:700}
+    .mgr-role{font-size:12px;color:var(--hint);margin-top:2px}
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 6px 12px;
-      border-radius: 100px;
-      font-size: 13px;
-      font-weight: 600;
+    /* ═══════════════════════════════════════════════
+       СТРАНИЦА — АВТОПАРК
+    ═══════════════════════════════════════════════ */
+    .p-hdr{padding:20px 16px 12px}
+    .p-title{font-size:28px;font-weight:800;letter-spacing:-0.5px}
+    .p-sub{font-size:14px;color:var(--hint);margin-top:4px}
+    .cars-list{padding:0 16px;display:flex;flex-direction:column;gap:12px}
+    .car-card{
+      padding:16px;border-radius:var(--radius);cursor:pointer;
+      background:var(--card);border:1px solid var(--card-border);
+      transition:var(--transition);
     }
+    .car-card:active{transform:scale(0.99)}
+    .car-card.sel{border-color:var(--accent);background:rgba(91,127,255,0.06)}
+    .cc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+    .cc-name{font-size:17px;font-weight:700}
+    .cc-vin{font-size:11px;color:var(--hint);margin-top:2px;letter-spacing:0.8px;font-family:"SF Mono","Courier New",monospace}
+    .cc-pb{height:4px;background:var(--bg3);border-radius:100px;overflow:hidden;margin:10px 0 4px}
+    .cc-pf{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+    .cc-pr{display:flex;justify-content:space-between;font-size:12px;color:var(--hint);margin-bottom:10px}
+    .cc-bot{display:flex;gap:7px;flex-wrap:wrap}
 
-    .badge--origin {
-      background: rgba(52,199,89,0.12);
-      color: #1E8A40;
+    /* ═══════════════════════════════════════════════
+       СТРАНИЦА — АДМИН
+    ═══════════════════════════════════════════════ */
+    .a-tabs{
+      display:flex;gap:8px;padding:0 16px 16px;overflow-x:auto;scrollbar-width:none;
     }
+    .a-tabs::-webkit-scrollbar{display:none}
+    .a-tab{
+      padding:8px 16px;border-radius:100px;white-space:nowrap;
+      font-size:13px;font-weight:700;cursor:pointer;
+      background:var(--card);border:1px solid var(--card-border);
+      color:var(--hint);transition:var(--transition);
+      -webkit-tap-highlight-color:transparent;
+    }
+    .a-tab.active{
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff;border-color:transparent;
+      box-shadow:0 4px 16px rgba(91,127,255,0.3);
+    }
+    .a-panel{display:none;padding:0 16px;animation:fadeUp 0.25s ease}
+    .a-panel.active{display:block}
+    .a-card{
+      padding:18px;background:var(--card);border:1px solid var(--card-border);
+      border-radius:var(--radius);margin-bottom:14px;
+    }
+    .a-card-ttl{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
 
-    .badge--destination {
-      background: rgba(0,122,255,0.12);
-      color: #0055CC;
-    }
+    /* Статы */
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+    .stat-card{padding:16px;border-radius:var(--radius-sm);background:var(--card);border:1px solid var(--card-border)}
+    .stat-ico{font-size:26px;margin-bottom:8px}
+    .stat-val{font-size:28px;font-weight:800}
+    .stat-lbl{font-size:11px;color:var(--hint);margin-top:3px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
 
-    /* Тёмная тема — инвертируем цвета бейджей */
-    @media (prefers-color-scheme: dark) {
-      .badge--origin      { color: #4CD964; }
-      .badge--destination { color: #5AC8FA; }
+    /* Статус тоггл */
+    .st-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .st-item{
+      display:flex;align-items:center;gap:10px;padding:12px 14px;
+      border-radius:var(--radius-sm);background:var(--card);border:1px solid var(--card-border);
     }
+    .st-ico{font-size:18px;flex-shrink:0}
+    .st-info{flex:1}
+    .st-name{font-size:14px;font-weight:600}
+    .st-date{font-size:12px;color:var(--hint);margin-top:2px}
+    .toggle{
+      width:44px;height:26px;border-radius:13px;cursor:pointer;
+      background:var(--bg3);border:none;position:relative;transition:var(--transition);flex-shrink:0;
+    }
+    .toggle::after{
+      content:'';position:absolute;top:3px;left:3px;
+      width:20px;height:20px;border-radius:50%;background:#fff;transition:var(--transition);
+    }
+    .toggle.on{background:var(--success)}
+    .toggle.on::after{transform:translateX(18px)}
 
-    .route-arrow {
-      color: var(--hint);
-      font-size: 14px;
+    /* Пользователи */
+    .user-item{
+      display:flex;align-items:center;gap:12px;padding:12px 0;
+      border-bottom:1px solid var(--card-border);
     }
+    .user-item:last-child{border-bottom:none}
+    .user-ava{
+      width:40px;height:40px;border-radius:50%;background:var(--bg3);
+      display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+    }
+    .user-ava.admin{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+    .user-info{flex:1}
+    .user-name{font-size:14px;font-weight:700}
+    .user-id{font-size:12px;color:var(--hint);margin-top:2px;font-family:"SF Mono","Courier New",monospace}
 
-    /* ============================================================
-       СЕКЦИИ (общий padding и заголовки)
-    ============================================================ */
-    .section {
-      padding: 16px 16px 0;
+    /* Уведомления */
+    .notif-item{
+      display:flex;gap:12px;align-items:flex-start;padding:12px 0;
+      border-bottom:1px solid var(--card-border);
     }
+    .notif-item:last-child{border-bottom:none}
+    .notif-ico{font-size:20px;flex-shrink:0}
+    .notif-txt{font-size:14px;font-weight:600}
+    .notif-sub{font-size:12px;color:var(--hint);margin-top:2px}
+    .notif-time{font-size:11px;color:var(--hint);margin-top:4px}
 
-    .section__title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--hint);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 10px;
+    /* ═══════════════════════════════════════════════
+       МОДАЛЬНОЕ ОКНО
+    ═══════════════════════════════════════════════ */
+    .overlay{
+      position:fixed;inset:0;z-index:2000;
+      background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+      display:none;align-items:flex-end;justify-content:center;
     }
+    .overlay.open{display:flex}
+    .modal{
+      width:100%;max-width:480px;max-height:92vh;overflow-y:auto;
+      background:var(--bg2);border-radius:28px 28px 0 0;
+      padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+      animation:slideUp 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .modal-handle{width:36px;height:4px;border-radius:2px;background:var(--hint);margin:0 auto 20px;opacity:0.35}
+    .modal-title{font-size:20px;font-weight:800;margin-bottom:20px}
 
-    /* ============================================================
-       КАРТОЧКА (общий стиль для блоков)
-    ============================================================ */
-    .card {
-      background: var(--bg);
-      border-radius: var(--card-radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
+    /* ═══════════════��═══════════════════════════════
+       TOAST
+    ═══════════════════════════════════════════════ */
+    #toast{
+      position:fixed;bottom:calc(82px + env(safe-area-inset-bottom));
+      left:50%;transform:translateX(-50%) translateY(20px);
+      z-index:9999;pointer-events:none;white-space:nowrap;
+      padding:10px 20px;border-radius:100px;
+      background:rgba(20,20,35,0.95);color:#fff;
+      font-size:14px;font-weight:600;font-family:var(--font);
+      border:1px solid rgba(255,255,255,0.1);
+      backdrop-filter:blur(12px);box-shadow:0 4px 24px rgba(0,0,0,0.35);
+      opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-    /* ============================================================
-       КАРТА
-    ============================================================ */
-    .map-container {
-      position: relative;
+    /* ── Маркеры карты ── */
+    .leaflet-div-icon{background:none!important;border:none!important}
+    .map-truck{
+      font-size:26px;animation:truckBob 2.5s ease-in-out infinite;
+      filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6));
     }
+    @keyframes truckBob{
+      0%,100%{transform:translateY(0) rotate(-3deg)}
+      50%{transform:translateY(-5px) rotate(3deg)}
+    }
+    .map-city{font-size:14px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))}
 
-    #map {
-      height: 270px;
-      width: 100%;
-      /* Предотвращаем конфликт скролла страницы и зума карты на мобилках */
-      touch-action: none;
-    }
+    /* ── Утилиты ── */
+    .sp{height:16px}
+    .sp-sm{height:8px}
+    .divider{height:1px;background:var(--card-border);margin:0 16px}
+    .flex-bc{display:flex;justify-content:space-between;align-items:center}
+    .t-hint{color:var(--hint)}
+    .t-sm{font-size:13px}
 
-    /* Плашка поверх карты с текущей локацией */
-    .map-overlay-badge {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 999;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-radius: 100px;
-      padding: 5px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #1C1C1E;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-      white-space: nowrap;
-      pointer-events: none;
-    }
-
-    /* ============================================================
-       ИНФО-ПЛИТКИ (ETA, расстояние)
-    ============================================================ */
-    .info-tiles {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      padding: 16px 16px 0;
-    }
-
-    .tile {
-      background: var(--bg);
-      border-radius: var(--card-radius);
-      padding: 14px 16px;
-      box-shadow: var(--shadow);
-    }
-
-    .tile__label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--hint);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-
-    .tile__value {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text);
-      line-height: 1.1;
-    }
-
-    .tile__unit {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--hint);
-      margin-top: 2px;
-    }
-
-    /* ============================================================
-       ТАЙМЛАЙН СТАТУСОВ
-    ============================================================ */
-    .timeline {
-      padding: 4px 0 4px 0;
-    }
-
-    .timeline-item {
-      display: flex;
-      gap: 14px;
-      padding: 0 16px;
-      position: relative;
-    }
-
-    /* Вертикальная линия между чекпоинтами */
-    .timeline-item:not(:last-child) .timeline-line {
-      position: absolute;
-      left: 31px; /* 16px padding + 7px (половина иконки ~14px) + 8px icon center */
-      top: 32px;
-      bottom: -4px;
-      width: 2px;
-      background: var(--pending);
-      z-index: 0;
-    }
-
-    /* Линия для выполненных — зелёная */
-    .timeline-item.done:not(:last-child) .timeline-line {
-      background: var(--success);
-    }
-
-    /* Линия до активного — зелёная */
-    .timeline-item.active:not(:last-child) .timeline-line {
-      background: linear-gradient(to bottom, var(--active), var(--pending));
-    }
-
-    /* Иконка-индикатор */
-    .timeline-icon {
-      flex-shrink: 0;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      z-index: 1;
-      margin-top: 14px;
-    }
-
-    .timeline-item.done .timeline-icon {
-      background: var(--success);
-      color: #fff;
-    }
-
-    .timeline-item.active .timeline-icon {
-      background: var(--active);
-      color: #fff;
-      box-shadow: 0 0 0 5px rgba(0,122,255,0.2);
-      animation: pulseIcon 1.8s ease-in-out infinite;
-    }
-
-    .timeline-item.pending .timeline-icon {
-      background: rgba(0,0,0,0.06);
-      color: var(--hint);
-    }
-
-    /* Текстовый блок */
-    .timeline-content {
-      padding: 14px 0 18px;
-      border-bottom: 1px solid rgba(0,0,0,0.06);
-      flex: 1;
-    }
-
-    .timeline-item:last-child .timeline-content {
-      border-bottom: none;
-    }
-
-    .timeline-content__title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text);
-      line-height: 1.3;
-    }
-
-    .timeline-item.pending .timeline-content__title {
-      color: var(--hint);
-    }
-
-    .timeline-content__subtitle {
-      font-size: 13px;
-      color: var(--hint);
-      margin-top: 2px;
-    }
-
-    .timeline-item.active .timeline-content__subtitle {
-      color: var(--active);
-      font-weight: 500;
-    }
-
-    /* ============================================================
-       ЗАКРЕПЛЁННАЯ КНОПКА ВНИЗУ
-    ============================================================ */
-    .bottom-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      padding: 12px 16px;
-      /* Безопасная зона для iPhone с "чёлкой" */
-      padding-bottom: calc(12px + env(safe-area-inset-bottom));
-      background: var(--bg);
-      border-top: 1px solid rgba(0,0,0,0.06);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    .btn-main {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 16px;
-      background: var(--btn);
-      color: var(--btn-text);
-      font-size: 16px;
-      font-weight: 700;
-      font-family: var(--font);
-      border: none;
-      border-radius: 14px;
-      cursor: pointer;
-      letter-spacing: 0.2px;
-      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
-      box-shadow: 0 4px 16px rgba(0,122,255,0.35);
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .btn-main:active {
-      transform: scale(0.97);
-      opacity: 0.88;
-      box-shadow: 0 2px 8px rgba(0,122,255,0.2);
-    }
-
-    /* ============================================================
-       АНИМАЦИИ
-    ============================================================ */
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.5; transform: scale(0.85); }
-    }
-
-    @keyframes pulseIcon {
-      0%, 100% { box-shadow: 0 0 0 5px rgba(0,122,255,0.2); }
-      50%       { box-shadow: 0 0 0 9px rgba(0,122,255,0.08); }
-    }
-
-    /* ============================================================
-       НИЖНИЙ ОТСТУП (чтобы кнопка не перекрывала последний элемент)
-    ============================================================ */
-    .bottom-spacer {
-      height: 24px;
-    }
-
-    /* ============================================================
-       СТИЛИ КАСТОМНОГО МАРКЕРА LEAFLET
-    ============================================================ */
-    .truck-marker {
-      font-size: 28px;
-      line-height: 1;
-      /* Центрируем эмодзи относительно точки */
-      margin-left: -14px;
-      margin-top: -14px;
-      /* Анимация лёгкого покачивания */
-      animation: truckBob 2s ease-in-out infinite;
-      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
-    }
-
-    @keyframes truckBob {
-      0%, 100% { transform: translateY(0px); }
-      50%       { transform: translateY(-4px); }
-    }
-
-    .city-marker {
-      font-size: 16px;
-      line-height: 1;
-      margin-left: -8px;
-      margin-top: -8px;
-    }
-
-    /* ============================================================
-       ТЁМНАЯ ТЕМА — переопределение некоторых цветов
-       (Telegram SDK заменяет CSS-переменные автоматически,
-        но здесь подстрахуемся через media query)
-    ============================================================ */
-    @media (prefers-color-scheme: dark) {
-      .map-overlay-badge {
-        background: rgba(30,30,30,0.92);
-        color: #FFFFFF;
-      }
-      .timeline-item.pending .timeline-icon {
-        background: rgba(255,255,255,0.08);
-      }
-    }
+    /* Скролл полосы скрыть */
+    *{scrollbar-width:thin;scrollbar-color:var(--bg3) transparent}
+    *::-webkit-scrollbar{width:4px;height:4px}
+    *::-webkit-scrollbar-track{background:transparent}
+    *::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:4px}
   </style>
 </head>
 <body>
 
-<div class="page-wrapper">
+<!-- ═════════════��═════════════════════════════════════════
+     ЭКРАН АВТОРИЗАЦИИ
+═══════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-logo">🚗</div>
+  <div class="auth-title">AutoRoute</div>
+  <div class="auth-sub">Система отслеживания доставки<br>премиальных автомобилей из Германии</div>
 
-  <!-- ============================================================
-       ШАПКА
-  ============================================================ -->
-  <header class="header">
-
-    <!-- Строка "Активная доставка" -->
-    <div class="header__status-row">
-      <span class="status-dot"></span>
-      <span class="status-label">Активная доставка</span>
+  <div class="auth-card">
+    <div class="auth-card-title">Введите код доступа</div>
+    <div class="auth-error" id="auth-error">Неверный код. Попробуйте ещё раз.</div>
+    <div class="fg">
+      <label class="lbl">Telegram ID или код</label>
+      <input class="inp" id="auth-input" type="text" placeholder="Введите ваш код или ID..."
+        autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"/>
     </div>
-
-    <!-- Марка и модель -->
-    <h1 class="header__car-name">BMW X5 xDrive40d</h1>
-
-    <!-- VIN (частично скрыт для безопасности) -->
-    <p class="header__vin">VIN: WBAJU82040X•••••</p>
-
-    <!-- Бейджи маршрута -->
-    <div class="route-badges">
-      <span class="badge badge--origin">🇩🇪 Берлин</span>
-      <span class="route-arrow">→</span>
-      <span class="badge badge--destination">🇷🇺 Москва</span>
-    </div>
-
-  </header>
-
-  <!-- ============================================================
-       КАРТА
-  ============================================================ -->
-  <div class="section" style="padding-top: 16px;">
-    <p class="section__title">📍 Маршрут и местоположение</p>
-    <div class="card map-container">
-      <!-- Плашка поверх карты -->
-      <div class="map-overlay-badge">🚚 Варшава, Польша · обновлено 12 мин назад</div>
-      <!-- Контейнер карты Leaflet -->
-      <div id="map"></div>
+    <button class="btn btn-primary btn-full" onclick="tryAuth()">Войти</button>
+    <div class="auth-hint">
+      Клиенты получают код от менеджера.<br>
+      Администраторы используют свой Telegram ID.
     </div>
   </div>
-
-  <!-- ============================================================
-       ИНФО-ПЛИТКИ
-  ============================================================ -->
-  <div class="info-tiles">
-
-    <div class="tile">
-      <p class="tile__label">📅 Прибытие ETA</p>
-      <p class="tile__value">22 Мар</p>
-      <p class="tile__unit">ориентировочно</p>
-    </div>
-
-    <div class="tile">
-      <p class="tile__label">🛣 Пройдено</p>
-      <p class="tile__value">1 140</p>
-      <p class="tile__unit">из ~1 900 км</p>
-    </div>
-
-  </div>
-
-  <!-- ============================================================
-       ТАЙМЛАЙН СТАТУСОВ
-  ============================================================ -->
-  <div class="section" style="padding-top: 20px;">
-    <p class="section__title">📋 История статусов</p>
-    <div class="card">
-      <div class="timeline">
-
-        <!-- ── Статус 1: Выполнен ── -->
-        <div class="timeline-item done">
-          <div class="timeline-line"></div>
-          <div class="timeline-icon">✓</div>
-          <div class="timeline-content">
-            <p class="timeline-content__title">Принято в Германии</p>
-            <p class="timeline-content__subtitle">Берлин · 15 марта, 10:30</p>
-          </div>
-        </div>
-
-        <!-- ── Статус 2: Выполнен ── -->
-        <div class="timeline-item done">
-          <div class="timeline-line"></div>
-          <div class="timeline-icon">✓</div>
-          <div class="timeline-content">
-            <p class="timeline-content__title">Погрузка на автовоз</p>
-            <p class="timeline-content__subtitle">Берлин, терминал A4 · 16 марта, 09:15</p>
-          </div>
-        </div>
-
-        <!-- ── Статус 3: Активный ── -->
-        <div class="timeline-item active">
-          <div class="timeline-line"></div>
-          <div class="timeline-icon">▶</div>
-          <div class="timeline-content">
-            <p class="timeline-content__title">Транзит по Европе</p>
-            <p class="timeline-content__subtitle">В пути · ориент. прохождение границы: 19 марта</p>
-          </div>
-        </div>
-
-        <!-- ── Статус 4: Ожидается ── -->
-        <div class="timeline-item pending">
-          <div class="timeline-line"></div>
-          <div class="timeline-icon">◌</div>
-          <div class="timeline-content">
-            <p class="timeline-content__title">Таможенное оформление (РБ)</p>
-            <p class="timeline-content__subtitle">Брест, таможенный пост</p>
-          </div>
-        </div>
-
-        <!-- ── Статус 5: Ожидается ── -->
-        <div class="timeline-item pending">
-          <!-- Последний элемент — нет разделителя -->
-          <div class="timeline-icon">◌</div>
-          <div class="timeline-content">
-            <p class="timeline-content__title">Прибытие в Москву</p>
-            <p class="timeline-content__subtitle">Склад временного хранения, МКАД</p>
-          </div>
-        </div>
-
-      </div><!-- /.timeline -->
-    </div><!-- /.card -->
-  </div>
-
-  <div class="bottom-spacer"></div>
-
-</div><!-- /.page-wrapper -->
-
-<!-- ============================================================
-     ЗАКРЕПЛЁННАЯ КНОПКА
-============================================================ -->
-<div class="bottom-bar">
-  <button class="btn-main" id="contactBtn">
-    💬 Связаться с менеджером
-  </button>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════
+     ОСНОВНОЕ ПРИЛОЖЕНИЕ
+═══════════════════════════════════════════════════════ -->
+<div id="app">
 
-<!-- ============================================================
+  <!-- ──────────────────────────────────────────────────
+       ТРЕКЕР
+  ────────────────────────────────────────────────── -->
+  <div class="page active" id="page-tracker">
+    <div class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-status"><span class="pulse-dot"></span><span class="hero-status-txt">В пути</span></div>
+        </div>
+        <div id="hero-badge"></div>
+      </div>
+      <div class="hero-car" id="hero-car">BMW X5 xDrive40d</div>
+      <div class="hero-vin" id="hero-vin">VIN: WBAJU82040X•••••</div>
+      <div class="route-row">
+        <div class="route-chip">🇩🇪 Берлин</div>
+        <div class="route-arr"><div class="arr-line"></div><div class="arr-head">▶</div></div>
+        <div class="route-chip">🇷🇺 Москва</div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="metric-val g-text" id="m-eta">22 Мар</div><div class="metric-lbl">📅 ETA</div><div class="metric-sub">ориент.</div></div>
+      <div class="metric"><div class="metric-val g-text" id="m-done">0</div><div class="metric-lbl">✅ Пройдено</div><div class="metric-sub">км</div></div>
+      <div class="metric"><div class="metric-val g-text" id="m-left">0</div><div class="metric-lbl">🏁 Осталось</div><div class="metric-sub">км</div></div>
+    </div>
+
+    <!-- Полоса стран -->
+    <div class="countries-strip" id="countries-strip"></div>
+
+    <div class="map-sec">
+      <div class="sec-hdr">
+        <span class="sec-ttl">🗺 Маршрут</span>
+        <span class="badge b-blue" id="total-km-badge">~5 980 км</span>
+      </div>
+      <div class="map-wrap">
+        <div class="map-pill" id="map-pill">🚚 Загрузка...</div>
+        <div id="map"></div>
+      </div>
+      <div class="km-prog">
+        <div class="km-row">
+          <span class="km-lbl">Прогресс маршрута</span>
+          <span class="km-val" id="km-pct">0%</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" id="km-fill" style="width:0%"></div></div>
+        <div class="km-ends">
+          <span class="km-end">🇩🇪 Берлин</span>
+          <span class="km-end">🇷🇺 Москва</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tl-sec">
+      <div class="sec-hdr"><span class="sec-ttl">📋 Статусы доставки</span></div>
+      <div class="tl-wrap" id="timeline"></div>
+    </div>
+
+    <div class="mgr-sec">
+      <div class="mgr-card">
+        <div class="mgr-ava">👨‍💼</div>
+        <div class="mgr-info">
+          <div class="mgr-name">Менеджер Алексей</div>
+          <div class="mgr-role">Персональный менеджер по доставке</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="contactMgr()">💬 Написать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────
+       АВТОПАРК
+  ────────────────────────────────────────────────── -->
+  <div class="page" id="page-cars">
+    <div class="p-hdr">
+      <div class="p-title">Автопарк</div>
+      <div class="p-sub" id="cars-sub">Все автомобили в доставке</div>
+    </div>
+    <div class="cars-list" id="cars-list"></div>
+    <div class="sp"></div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────
+       АДМИН
+  ────────────────────────────────────────────────── -->
+  <div class="page" id="page-admin">
+    <div class="p-hdr">
+      <div class="p-title">Управление</div>
+      <div class="p-sub">Панель администратора</div>
+    </div>
+
+    <div class="a-tabs">
+      <button class="a-tab active" onclick="aTab('stats',this)">📊 Статистика</button>
+      <button class="a-tab" onclick="aTab('add',this)">➕ Добавить</button>
+      <button class="a-tab" onclick="aTab('edit',this)">✏️ Редактировать</button>
+      <button class="a-tab" onclick="aTab('statuses',this)">📋 Статусы</button>
+      <button class="a-tab" onclick="aTab('users',this)">👥 Доступ</button>
+      <button class="a-tab" onclick="aTab('notify',this)">🔔 Уведомления</button>
+    </div>
+
+    <!-- Статистика -->
+    <div class="a-panel active" id="ap-stats">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-ico">🚗</div><div class="stat-val g-text" id="s-active">0</div><div class="stat-lbl">Активных</div></div>
+        <div class="stat-card"><div class="stat-ico">✅</div><div class="stat-val g-text">47</div><div class="stat-lbl">Доставлено</div></div>
+        <div class="stat-card"><div class="stat-ico">🛣</div><div class="stat-val g-text" id="s-km">0</div><div class="stat-lbl">Км в пути</div></div>
+        <div class="stat-card"><div class="stat-ico">⏱</div><div class="stat-val g-text">14.5</div><div class="stat-lbl">Ср. дней</div></div>
+      </div>
+      <div class="a-card">
+        <div class="a-card-ttl">📦 Активные рейсы</div>
+        <div id="s-cars-list"></div>
+      </div>
+    </div>
+
+    <!-- Добавить авто -->
+    <div class="a-panel" id="ap-add">
+      <div class="a-card">
+        <div class="a-card-ttl">🚘 Новая доставка</div>
+        <div class="fg"><label class="lbl">Марка и модель</label><input class="inp" id="n-name" placeholder="BMW X7 M50d"/></div>
+        <div class="fg"><label class="lbl">VIN-номер (17 символов)</label><input class="inp" id="n-vin" placeholder="WBAJU82040X12345" maxlength="17"/></div>
+        <div class="fg"><label class="lbl">Имя клиента</label><input class="inp" id="n-client" placeholder="Иванов Сергей"/></div>
+        <div class="fg"><label class="lbl">Telegram ID клиента (для доступа)</label><input class="inp" id="n-tgid" placeholder="123456789" type="number"/></div>
+        <div class="fg"><label class="lbl">Ожидаемая дата прибытия (ETA)</label><input class="inp" type="date" id="n-eta"/></div>
+        <div class="fg"><label class="lbl">Год выпуска авто</label><input class="inp" id="n-year" placeholder="2024" type="number" min="2000" max="2030"/></div>
+        <div class="fg"><label class="lbl">Цвет / комплектация</label><input class="inp" id="n-color" placeholder="Чёрный металлик / M-Sport"/></div>
+        <div class="fg"><label class="lbl">Начальный км (по умолчанию 0)</label><input class="inp" id="n-km" placeholder="0" type="number" min="0"/></div>
+        <button class="btn btn-success btn-full" onclick="addCar()">✅ Добавить в систему</button>
+      </div>
+    </div>
+
+    <!-- Редактировать авто -->
+    <div class="a-panel" id="ap-edit">
+      <div class="a-card">
+        <div class="a-card-ttl">✏️ Данные автомобиля</div>
+        <div class="fg"><label class="lbl">Выбрать авто</label>
+          <select class="inp" id="e-select" onchange="loadEdit()"></select>
+        </div>
+        <div class="fg"><label class="lbl">Марка и модель</label><input class="inp" id="e-name" placeholder="BMW X5"/></div>
+        <div class="fg"><label class="lbl">VIN-номер</label><input class="inp" id="e-vin" placeholder="WBAJU82040X12345" maxlength="17"/></div>
+        <div class="fg"><label class="lbl">Имя клиента</label><input class="inp" id="e-client" placeholder="Иванов Сергей"/></div>
+        <div class="fg"><label class="lbl">ETA (дата прибытия)</label><input class="inp" type="date" id="e-eta"/></div>
+        <div class="fg"><label class="lbl">Пройдено километров</label><input class="inp" type="number" id="e-km" placeholder="1500" min="0"/></div>
+        <div class="fg"><label class="lbl">Текущий город</label><input class="inp" id="e-city" placeholder="Тбилиси, Грузия"/></div>
+        <div class="fg"><label class="lbl">Статус</label>
+          <select class="inp" id="e-status">
+            <option value="loaded">📦 Погружен, ожидает отправки</option>
+            <option value="transit">🚛 В транзите</option>
+            <option value="customs">🛃 На таможне</option>
+            <option value="arrived">✅ Прибыл в Москву</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Telegram ID клиента</label><input class="inp" id="e-tgid" placeholder="123456789" type="number"/></div>
+        <button class="btn btn-primary btn-full" onclick="saveEdit()">💾 Сохранить</button>
+        <div class="sp-sm"></div>
+        <button class="btn btn-danger btn-full" onclick="deleteCar()" style="margin-top:4px">🗑 Удалить авто</button>
+      </div>
+    </div>
+
+    <!-- Управление статусами -->
+    <div class="a-panel" id="ap-statuses">
+      <div class="a-card">
+        <div class="a-card-ttl">📋 Чекпоинты доставки</div>
+        <div class="fg"><label class="lbl">Авто</label>
+          <select class="inp" id="st-select" onchange="renderStEditor()"></select>
+        </div>
+        <div class="st-list" id="st-editor"></div>
+        <div class="sp-sm"></div>
+        <button class="btn btn-primary btn-full" onclick="saveStatuses()">💾 Сохранить статусы</button>
+      </div>
+      <div class="a-card">
+        <div class="a-card-ttl">📅 Изменить дату статуса</div>
+        <div class="fg"><label class="lbl">Статус</label>
+          <select class="inp" id="dt-status">
+            <option value="0">Принято в Германии</option>
+            <option value="1">Погрузка на автовоз</option>
+            <option value="2">Транзит (Прага/Вена)</option>
+            <option value="3">Транзит (Будапешт/Румыния)</option>
+            <option value="4">Транзит (Болгария/Турция)</option>
+            <option value="5">Транзит (Грузия)</option>
+            <option value="6">КПП Верхний Ларс</option>
+            <option value="7">Прибытие в Москву</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Новая дата</label><input class="inp" type="date" id="dt-date"/></div>
+        <button class="btn btn-ghost btn-full" onclick="updateStDate()">📅 Обновить дату</button>
+      </div>
+    </div>
+
+    <!-- Управление доступом -->
+    <div class="a-panel" id="ap-users">
+      <div class="a-card">
+        <div class="a-card-ttl">👑 Администраторы</div>
+        <div id="admin-list"></div>
+        <div class="sp-sm"></div>
+        <div class="fg" style="margin-top:14px"><label class="lbl">Добавить администратора</label>
+          <input class="inp" id="new-admin-id" placeholder="Telegram ID (например: 123456789)" type="number"/>
+        </div>
+        <div class="fg"><label class="lbl">Имя</label>
+          <input class="inp" id="new-admin-name" placeholder="Имя администратора"/>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="addAdmin()">➕ Добавить администратора</button>
+      </div>
+      <div class="a-card">
+        <div class="a-card-ttl">👥 Клиенты с доступом</div>
+        <div id="clients-list"></div>
+        <div class="sp-sm"></div>
+        <div style="font-size:13px;color:var(--hint);padding-top:8px;line-height:1.5">
+          Клиенты автоматически получают доступ при добавлении авто через вкладку "Добавить".
+          Каждый клиент видит только свои автомобили.
+        </div>
+      </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div class="a-panel" id="ap-notify">
+      <div class="a-card">
+        <div class="a-card-ttl">📤 Отправить уведомление</div>
+        <div class="fg"><label class="lbl">Клиент</label>
+          <select class="inp" id="nt-car"></select>
+        </div>
+        <div class="fg"><label class="lbl">Тип</label>
+          <select class="inp" id="nt-type">
+            <option>🛃 Авто прошло таможню</option>
+            <option>🚛 Статус изменён</option>
+            <option>📅 Изменена дата прибытия</option>
+            <option>⚠️ Задержка доставки</option>
+            <option>✅ Авто прибыло в Москву</option>
+            <option>💬 Произвольное сообщение</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Сообщение</label>
+          <textarea class="inp" id="nt-text" rows="3"
+            placeholder="Ваш автомобиль успешно прошёл таможню..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="sendNotify()">📤 Отправить клиенту</button>
+      </div>
+      <div class="a-card">
+        <div class="a-card-ttl">🕓 История уведомлений</div>
+        <div id="nt-history"></div>
+      </div>
+    </div>
+
+    <div class="sp"></div>
+  </div>
+
+  <!-- Навигация -->
+  <nav class="tab-bar" id="tab-bar">
+    <button class="tab-item active" id="tb-tracker" onclick="goPage('tracker',this)">
+      <span class="tab-icon">📍</span><span class="tab-label">Трекер</span>
+    </button>
+    <button class="tab-item" id="tb-cars" onclick="goPage('cars',this)">
+      <span class="tab-icon">🚗</span><span class="tab-label">Автопарк</span>
+    </button>
+    <button class="tab-item" id="tb-admin" onclick="goPage('admin',this)" style="display:none" id="tb-admin">
+      <span class="tab-icon">⚙️</span><span class="tab-label">Админ</span>
+    </button>
+  </nav>
+
+</div><!-- /#app -->
+
+<!-- ═══ МОДАЛКА (детали авто) ═══ -->
+<div class="overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">Авто</div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════
      JAVASCRIPT
-============================================================ -->
+═══════════════════════════════════════════════════════ -->
 <script>
-  /* ============================================================
-     1. ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP
-  ============================================================ */
-  const tg = window.Telegram?.WebApp;
+/* ════════════════════════════════════════════
+   TELEGRAM
+════════════════════════════════════════════ */
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.expand();
+  tg.setHeaderColor?.('bg_color');
+  // Тёмная/светлая тема
+  if (tg.colorScheme === 'light') document.body.classList.add('tg-light');
+}
+// Получаем Telegram ID текущего пользователя (если в TG)
+const TG_USER_ID = tg?.initDataUnsafe?.user?.id?.toString() || null;
+const TG_USER_NAME = tg?.initDataUnsafe?.user?.first_name || 'Пользователь';
 
-  if (tg) {
-    // Разворачиваем приложение на полный экран
-    tg.expand();
-    // Устанавливаем цвет статус-бара (для iOS)
-    tg.setHeaderColor?.('bg_color');
-    tg.setBackgroundColor?.('#F2F2F7');
+/* ════════════════════════════════════════════
+   МАРШРУТ ГЕРМАНИЯ → МОСКВА ЧЕРЕЗ ГРУЗИЮ
+   Реальные точки на дороге с точным км
+════════════════════════════════════════════ */
+const ROUTE = [
+  { name:"Берлин",       country:"🇩🇪 Германия",   lat:52.520, lng:13.405, km:0     },
+  { name:"Прага",        country:"🇨🇿 Чехия",       lat:50.076, lng:14.438, km:350   },
+  { name:"Вена",         country:"🇦🇹 Австрия",     lat:48.208, lng:16.374, km:680   },
+  { name:"Будапешт",     country:"🇭🇺 Венгрия",     lat:47.498, lng:19.040, km:925   },
+  { name:"Бухарест",     country:"🇷🇴 Румыния",     lat:44.427, lng:26.103, km:1760  },
+  { name:"София",        country:"🇧🇬 Болгария",    lat:42.698, lng:23.322, km:2130  },
+  { name:"Стамбул",      country:"🇹🇷 Турция",      lat:41.008, lng:28.978, km:2680  },
+  { name:"Анкара",       country:"🇹🇷 Турция",      lat:39.920, lng:32.854, km:3130  },
+  { name:"Трабзон",      country:"🇹🇷 Турция",      lat:41.003, lng:39.726, km:3720  },
+  { name:"Батуми",       country:"🇬🇪 Грузия",      lat:41.642, lng:41.633, km:3850  },
+  { name:"Тбилиси",      country:"🇬🇪 Грузия",      lat:41.715, lng:44.827, km:4200  },
+  { name:"Верхний Ларс", country:"🇷🇺 Россия (КПП)", lat:42.790, lng:44.505, km:4400  },
+  { name:"Владикавказ",  country:"🇷🇺 Россия",      lat:43.024, lng:44.682, km:4450  },
+  { name:"Краснодар",    country:"🇷🇺 Россия",      lat:45.035, lng:38.976, km:5050  },
+  { name:"Воронеж",      country:"🇷🇺 Россия",      lat:51.672, lng:39.184, km:5470  },
+  { name:"Москва",       country:"🇷🇺 Россия",      lat:55.756, lng:37.617, km:5980  },
+];
+const TOTAL_KM = 5980;
+
+/* Уникальные страны маршрута (по порядку) */
+const COUNTRIES = [...new Map(ROUTE.map(p => [p.country, p])).values()];
+
+/* ════════════════════════════════════════════
+   СИСТЕМА АВТОРИЗАЦИИ
+════════════════════════════════════════════ */
+
+/* Данные хранятся в localStorage для персистентности */
+function loadStorage(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }
+  catch { return def; }
+}
+function saveStorage(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+/* Список администраторов: { id: "telegram_id_string", name: "Имя" } */
+let ADMINS = loadStorage('ar_admins', [
+  { id:"ADMIN_MASTER", name:"Главный администратор" }, // мастер-пароль
+]);
+
+/* Список клиентов: { tgId: "...", name: "..." } — заполняется при добавлении авто */
+let CLIENTS = loadStorage('ar_clients', []);
+
+/* Машины */
+let CARS = loadStorage('ar_cars', [
+  {
+    id:1, name:"BMW X5 xDrive40d",
+    vin:"WBAJU82040X•••••", vinFull:"WBAJU82040X12345",
+    client:"Иванов Сергей", clientTgId:"CLIENT_DEMO_1",
+    eta:"22 марта 2025", etaDate:"2025-03-22",
+    kmDone:2680, city:"Стамбул, Турция", status:"transit",
+    year:"2024", color:"Чёрный металлик / M-Sport",
+    statuses:[
+      {title:"Принято в Германии",     sub:"Берлин, склад A4",             state:"done",    date:"15 марта, 10:30",  icon:"✅"},
+      {title:"Погрузка на автовоз",    sub:"Берлин, терминал A4",          state:"done",    date:"16 марта, 09:15",  icon:"📦"},
+      {title:"Транзит: Прага — Вена",  sub:"Чехия → Австрия → Венгрия",   state:"done",    date:"17–18 марта",      icon:"🚛"},
+      {title:"Транзит: Бухарест",      sub:"Румыния → Болгария",           state:"done",    date:"19–20 марта",      icon:"🚛"},
+      {title:"Транзит: Стамбул",       sub:"Сейчас в Стамбуле, Турция",   state:"active",  date:"В пути · ~23 марта проезд Грузии",icon:"🚛"},
+      {title:"Транзит: Тбилиси",       sub:"Грузия, КПП Батуми-Тбилиси",  state:"pending", date:"~24 марта",        icon:"🇬🇪"},
+      {title:"КПП Верхний Ларс",       sub:"Граница Грузия — Россия",      state:"pending", date:"~25 марта",        icon:"🛃"},
+      {title:"Прибытие в Москву",      sub:"Склад временного хранения",    state:"pending", date:"~30 марта",        icon:"🏁"},
+    ]
+  },
+  {
+    id:2, name:"Mercedes GLE 450",
+    vin:"WDC1669471A•••••", vinFull:"WDC1669471A54321",
+    client:"Петров Дмитрий", clientTgId:"CLIENT_DEMO_2",
+    eta:"5 апреля 2025", etaDate:"2025-04-05",
+    kmDone:1760, city:"Бухарест, Румыния", status:"transit",
+    year:"2024", color:"Серебристый / AMG Line",
+    statuses:[
+      {title:"Принято в Германии",     sub:"Мюнхен, склад B2",             state:"done",    date:"19 марта, 14:00",  icon:"✅"},
+      {title:"Погрузка на автовоз",    sub:"Берлин, термин��л C1",          state:"done",    date:"20 марта, 11:00",  icon:"📦"},
+      {title:"Транзит: Прага — Вена",  sub:"Чехия → Австрия → Венгрия",   state:"done",    date:"21–22 марта",      icon:"🚛"},
+      {title:"Транзит: Бухарест",      sub:"Сейчас в Румынии",             state:"active",  date:"В пути · ~25 марта Болгария",icon:"🚛"},
+      {title:"Транзит: Стамбул",       sub:"Турция",                       state:"pending", date:"~27 марта",        icon:"🚛"},
+      {title:"Транзит: Тбилиси",       sub:"Грузия",                       state:"pending", date:"~1 апреля",        icon:"🇬🇪"},
+      {title:"КПП Верхний Ларс",       sub:"Граница Грузия — Россия",      state:"pending", date:"~2 апреля",        icon:"🛃"},
+      {title:"Прибытие в Москву",      sub:"Склад временного хранения",    state:"pending", date:"~5 апреля",        icon:"🏁"},
+    ]
+  },
+]);
+
+let notifyHistory = [];
+let currentCarId  = 1;
+let currentUser   = null; // { type:'admin'|'client', id, name, carIds }
+
+/* ════════════════════════════════════════════
+   АВТОРИЗАЦИЯ
+════════════════════════════════════════════ */
+function tryAuth() {
+  const input = document.getElementById('auth-input').value.trim();
+  if (!input) { showAuthError('Введите код или Telegram ID.'); return; }
+
+  // 1. Проверяем автоматически по TG ID (если запущен в Telegram)
+  // 2. Проверяем по введённому значению
+
+  const checkId = input;
+
+  // Проверка: администратор
+  const admin = ADMINS.find(a => a.id === checkId);
+  if (admin) {
+    currentUser = { type:'admin', id:admin.id, name:admin.name };
+    enterApp();
+    return;
   }
 
-  /* ============================================================
-     2. MOCK-ДАННЫЕ МАРШРУТА
-     Координаты: Берлин → Варшава → Брест → Москва
-  ============================================================ */
-  const ROUTE_POINTS = [
-    { name: "Берлин",   lat: 52.5200, lng: 13.4050, flag: "🇩🇪" },
-    { name: "Варшава",  lat: 52.2297, lng: 21.0122, flag: "🇵🇱" },
-    { name: "Брест",    lat: 52.0978, lng: 23.7341, flag: "🇧🇾" },
-    { name: "Минск",    lat: 53.9045, lng: 27.5615, flag: "🇧🇾" },
-    { name: "Смоленск", lat: 54.7826, lng: 32.0453, flag: "🇷🇺" },
-    { name: "Москва",   lat: 55.7558, lng: 37.6176, flag: "🇷🇺" },
-  ];
+  // Проверка: клиент (TG ID совпадает с clientTgId любого авто)
+  const clientCars = CARS.filter(c => c.clientTgId === checkId);
+  if (clientCars.length > 0) {
+    const client = CLIENTS.find(c => c.tgId === checkId);
+    currentUser = {
+      type:'client',
+      id: checkId,
+      name: client?.name || clientCars[0].client,
+      carIds: clientCars.map(c => c.id)
+    };
+    enterApp();
+    return;
+  }
 
-  // Координаты самой линии маршрута (polyline)
-  const ROUTE_LATLNGS = ROUTE_POINTS.map(p => [p.lat, p.lng]);
+  showAuthError('Код не найден. Проверьте правильность или обратитесь к менеджеру.');
+}
 
-  // Текущее положение автовоза (около Варшавы, чуть восточнее)
-  const TRUCK_POSITION = { lat: 52.21, lng: 22.35 };
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
 
-  /* ============================================================
-     3. ИНИЦИАЛИЗАЦИЯ КАРТЫ LEAFLET
-  ============================================================ */
-  // Инициализируем карту, центрируем приблизительно по середине маршрута
-  const map = L.map('map', {
-    center: [52.8, 26.5],
-    zoom: 5,
-    zoomControl: true,
-    scrollWheelZoom: true,
-    // Отключаем двойной тап для зума (мешает скроллу страницы)
-    doubleClickZoom: false,
+// Автоматический вход по TG ID
+function autoAuthByTgId() {
+  if (!TG_USER_ID) return false;
+  const admin = ADMINS.find(a => a.id === TG_USER_ID);
+  if (admin) { currentUser = { type:'admin', id:admin.id, name:admin.name }; enterApp(); return true; }
+  const clientCars = CARS.filter(c => c.clientTgId === TG_USER_ID);
+  if (clientCars.length > 0) {
+    currentUser = { type:'client', id:TG_USER_ID, name:TG_USER_NAME, carIds: clientCars.map(c=>c.id) };
+    enterApp(); return true;
+  }
+  return false;
+}
+
+function enterApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+
+  // Показываем вкладку Админ только для admin
+  const tbAdmin = document.getElementById('tb-admin');
+  if (currentUser.type === 'admin') {
+    tbAdmin.style.display = '';
+  }
+
+  // Если клиент — показываем только его авто
+  if (currentUser.type === 'client' && currentUser.carIds.length > 0) {
+    currentCarId = currentUser.carIds[0];
+  }
+
+  renderTracker();
+  renderCarsList();
+  initMap();
+
+  showToast(`👋 Добро пожаловать, ${currentUser.name}!`);
+}
+
+// Enter по нажатию Enter
+document.getElementById('auth-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryAuth();
+});
+
+/* ════════════════════════════════════════════
+   КАРТА
+════════════════════════════════════════════ */
+let map;
+
+function initMap() {
+  map = L.map('map', {
+    center:[45, 28], zoom:4,
+    zoomControl:false, scrollWheelZoom:false,
+    attributionControl:false,
   });
 
-  // Слой тайлов OpenStreetMap (бесплатно, без API-ключа)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
+  // CARTO Dark тайлы — идеально для тёмного UI
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom:19
   }).addTo(map);
 
-  /* --- Линия маршрута --- */
-  // Пунктирная линия "общий маршрут"
-  L.polyline(ROUTE_LATLNGS, {
-    color: '#C7C7CC',
-    weight: 3,
-    dashArray: '8, 8',
-    opacity: 0.7,
-  }).addTo(map);
+  L.control.attribution({position:'bottomright', prefix:false})
+    .addAttribution('© <a href="https://carto.com/" style="color:#555;font-size:9px">CARTO</a>')
+    .addTo(map);
 
-  // Сплошная синяя линия "пройденный участок" (Берлин → текущая позиция)
-  const passedRoute = [
-    [ROUTE_POINTS[0].lat, ROUTE_POINTS[0].lng],
-    [ROUTE_POINTS[1].lat, ROUTE_POINTS[1].lng], // Варшава
-    [TRUCK_POSITION.lat,  TRUCK_POSITION.lng],
-  ];
-  L.polyline(passedRoute, {
-    color: '#007AFF',
-    weight: 4,
-    opacity: 1,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(map);
+  drawRoute();
+  setTimeout(() => map.invalidateSize(), 350);
+}
 
-  /* --- Маркер автовоза (текущая позиция) --- */
-  // Создаём кастомную иконку из эмодзи
-  const truckIcon = L.divIcon({
-    className: '',           // убираем дефолтный белый фон Leaflet
-    html: '<div class="truck-marker">🚚</div>',
-    iconSize:   [32, 32],
-    iconAnchor: [16, 16],    // точка привязки — центр иконки
-    popupAnchor:[0, -20],
+function drawRoute() {
+  const car = CARS.find(c => c.id === currentCarId);
+  if (!car || !map) return;
+
+  // Удаляем старые слои кроме тайлов
+  map.eachLayer(l => {
+    if (!(l instanceof L.TileLayer)) map.removeLayer(l);
   });
 
-  L.marker([TRUCK_POSITION.lat, TRUCK_POSITION.lng], { icon: truckIcon })
-    .addTo(map)
-    .bindPopup(
-      '<strong>Автовоз #AT-2847</strong><br>Варшава, Польша<br><span style="color:#007AFF;font-size:12px">В пути → Москва</span>',
-      { closeButton: false, offset: [0, -10] }
-    )
-    .openPopup();
+  const allLatLngs = ROUTE.map(p => [p.lat, p.lng]);
 
-  /* --- Маркеры городов (начало и конец маршрута) --- */
-  const createCityIcon = (emoji) => L.divIcon({
-    className: '',
-    html: `<div class="city-marker">${emoji}</div>`,
-    iconSize:   [24, 24],
-    iconAnchor: [12, 12],
-  });
+  // ── Пунктирный маршрут весь ──
+  L.polyline(allLatLngs, {
+    color:'rgba(120,120,200,0.2)', weight:3,
+    dashArray:'6 10', lineCap:'round', lineJoin:'round',
+  }).addTo(map);
 
-  // Берлин — старт
-  L.marker([ROUTE_POINTS[0].lat, ROUTE_POINTS[0].lng], { icon: createCityIcon('🟢') })
-    .addTo(map)
-    .bindTooltip('🇩🇪 Берлин (старт)', { permanent: false, direction: 'top' });
+  // ── Определяем пройденные точки ──
+  const kmDone = car.kmDone;
+  let passedPts = [];
+  let truckPos  = null;
 
-  // Москва — финиш
-  L.marker([ROUTE_POINTS[5].lat, ROUTE_POINTS[5].lng], { icon: createCityIcon('🏁') })
-    .addTo(map)
-    .bindTooltip('🇷🇺 Москва (финиш)', { permanent: false, direction: 'top' });
-
-  // Брест — таможня
-  L.marker([ROUTE_POINTS[2].lat, ROUTE_POINTS[2].lng], { icon: createCityIcon('🔵') })
-    .addTo(map)
-    .bindTooltip('🇧🇾 Брест (таможня)', { permanent: false, direction: 'top' });
-
-  /* --- Подгоняем вид карты под весь маршрут с отступами --- */
-  map.fitBounds(ROUTE_LATLNGS, { padding: [24, 24] });
-
-  // Небольшой хак: принудительно перерисовываем карту после загрузки страницы,
-  // чтобы тайлы корректно отобразились (актуально для WebView Telegram)
-  setTimeout(() => map.invalidateSize(), 300);
-
-  /* ============================================================
-     4. ОБРАБОТЧИК КНОПКИ "СВЯЗАТЬСЯ С МЕНЕДЖЕРОМ"
-  ============================================================ */
-  document.getElementById('contactBtn').addEventListener('click', () => {
-    if (tg && tg.initData) {
-      // Если запущено в Telegram — отправляем данные боту
-      // или открываем ссылку на чат с менеджером
-      tg.sendData(JSON.stringify({
-        action: 'contact_manager',
-        car:    'BMW X5 xDrive40d',
-        vin:    'WBAJU82040X*****',
-      }));
+  for (let i = 0; i < ROUTE.length; i++) {
+    if (ROUTE[i].km <= kmDone) {
+      passedPts.push([ROUTE[i].lat, ROUTE[i].lng]);
     } else {
-      // Fallback для браузера (демо-режим)
-      showToast('💬 Открываем чат с вашим менеджером...');
+      if (i > 0) {
+        const prev = ROUTE[i-1], next = ROUTE[i];
+        const frac = (kmDone - prev.km) / (next.km - prev.km);
+        truckPos = [
+          prev.lat + (next.lat - prev.lat) * frac,
+          prev.lng + (next.lng - prev.lng) * frac
+        ];
+        passedPts.push(truckPos);
+      }
+      break;
     }
+  }
+  if (kmDone >= TOTAL_KM) truckPos = null; // Прибыл
+
+  // ── Градиентная линия пройденного пути (посегментно) ──
+  if (passedPts.length >= 2) {
+    const n = passedPts.length - 1;
+    for (let i = 0; i < n; i++) {
+      const t = i / Math.max(n - 1, 1);
+      // Цвет: синий → фиолетовый
+      const r = Math.round(91  + (139 - 91)  * t);
+      const g = Math.round(127 + (92  - 127) * t);
+      const b = Math.round(255 + (246 - 255) * t);
+      L.polyline([passedPts[i], passedPts[i+1]], {
+        color:`rgb(${r},${g},${b})`,
+        weight: 4 + t * 2,
+        lineCap:'round', lineJoin:'round', opacity:0.95,
+      }).addTo(map);
+    }
+  }
+
+  // ── Маркеры городов ──
+  ROUTE.forEach((city, idx) => {
+    const passed = city.km <= kmDone;
+    const isFirst = idx === 0;
+    const isLast  = idx === ROUTE.length - 1;
+    let emoji;
+    if (isFirst)      emoji = '🟢';
+    else if (isLast)  emoji = kmDone >= TOTAL_KM ? '🏁' : '🔴';
+    else if (passed)  emoji = '🔵';
+    else              emoji = '⚪';
+
+    // Показываем только важные города (не все, чтоб не загромождать)
+    const important = [0,2,4,6,7,9,10,11,13,15];
+    if (!important.includes(idx) && !passed) return;
+
+    const icon = L.divIcon({
+      className:'',
+      html:`<div class="map-city" style="font-size:${isFirst||isLast?'18':'13'}px">${emoji}</div>`,
+      iconSize:[22,22], iconAnchor:[11,11],
+    });
+
+    L.marker([city.lat, city.lng], {icon, zIndexOffset: passed ? 100 : 50})
+      .addTo(map)
+      .bindTooltip(`${city.country.split(' ')[0]} ${city.name} · ${city.km.toLocaleString('ru')} км`, {
+        direction:'top', offset:[0,-10], permanent:false,
+      });
   });
 
-  /* ============================================================
-     5. TOAST-УВЕДОМЛЕНИЕ (замена alert для красивого UX)
-  ============================================================ */
-  function showToast(message) {
-    // Если уже есть — удаляем
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.textContent = message;
-
-    // Стили тоста через JS (чтобы не добавлять лишний CSS)
-    Object.assign(toast.style, {
-      position:       'fixed',
-      bottom:         'calc(90px + env(safe-area-inset-bottom))',
-      left:           '50%',
-      transform:      'translateX(-50%) translateY(20px)',
-      background:     'rgba(28,28,30,0.92)',
-      color:          '#FFFFFF',
-      padding:        '10px 20px',
-      borderRadius:   '100px',
-      fontSize:       '14px',
-      fontWeight:     '500',
-      fontFamily:     '-apple-system, Roboto, sans-serif',
-      backdropFilter: 'blur(10px)',
-      zIndex:         '9999',
-      whiteSpace:     'nowrap',
-      boxShadow:      '0 4px 20px rgba(0,0,0,0.25)',
-      opacity:        '0',
-      transition:     'all 0.3s cubic-bezier(0.34,1.56,0.64,1)',
-      pointerEvents:  'none',
+  // ── Маркер автовоза ──
+  if (truckPos) {
+    const truckIcon = L.divIcon({
+      className:'',
+      html:'<div class="map-truck">🚚</div>',
+      iconSize:[32,32], iconAnchor:[16,28],
     });
-
-    document.body.appendChild(toast);
-
-    // Анимация появления
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateX(-50%) translateY(0px)';
-      });
+    L.marker(truckPos, {icon:truckIcon, zIndexOffset:1000})
+      .addTo(map)
+      .bindPopup(`
+        <div style="font-family:var(--font);font-size:13px;line-height:1.5;min-width:180px">
+          <strong>${car.name}</strong><br>
+          📍 ${car.city}<br>
+          🛣 Пройдено: <b>${car.kmDone.toLocaleString('ru')} км</b><br>
+          🏁 Осталось: <b>${(TOTAL_KM - car.kmDone).toLocaleString('ru')} км</b>
+        </div>
+      `, {closeButton:false, offset:[0,-20]})
+      .openPopup();
+  } else if (kmDone >= TOTAL_KM) {
+    const finIcon = L.divIcon({
+      className:'', html:'<div style="font-size:26px">🏁</div>',
+      iconSize:[32,32], iconAnchor:[16,28],
     });
-
-    // Автоскрытие через 3 секунды
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(-50%) translateY(10px)';
-      setTimeout(() => toast.remove(), 350);
-    }, 3000);
+    L.marker([55.756, 37.617], {icon:finIcon, zIndexOffset:1000})
+      .addTo(map)
+      .bindPopup(`<div style="font-family:var(--font)"><b>${car.name}</b><br>✅ Прибыл в Москву!</div>`,
+        {closeButton:false, offset:[0,-20]}).openPopup();
   }
-</script>
 
+  map.fitBounds(allLatLngs, {padding:[28,28]});
+}
+
+/* ════════════════════════════════════════════
+   РЕНДЕР ТРЕКЕРА
+════════════════════════════════════════════ */
+function renderTracker() {
+  const car = CARS.find(c => c.id === currentCarId);
+  if (!car) return;
+
+  const pct  = Math.min(100, Math.round((car.kmDone / TOTAL_KM) * 100));
+  const left = Math.max(0, TOTAL_KM - car.kmDone);
+
+  document.getElementById('hero-car').textContent  = car.name;
+  document.getElementById('hero-vin').textContent  = `VIN: ${car.vin}`;
+  document.getElementById('m-eta').textContent     = car.eta.replace(/\d{4}/,'').trim().replace(/ г\.?$/,'');
+  document.getElementById('m-done').textContent    = car.kmDone.toLocaleString('ru');
+  document.getElementById('m-left').textContent    = left.toLocaleString('ru');
+  document.getElementById('km-pct').textContent    = `${pct}%`;
+  document.getElementById('km-fill').style.width   = `${pct}%`;
+  document.getElementById('map-pill').textContent  = `🚚 ${car.city} · обновлено 12 мин назад`;
+  document.getElementById('total-km-badge').textContent = `~${TOTAL_KM.toLocaleString('ru')} км`;
+
+  // Полоса стран
+  renderCountriesStrip(car);
+
+  // Таймлайн
+  renderTimeline(car);
+
+  if (map) { drawRoute(); setTimeout(() => map.invalidateSize(), 200); }
+}
+
+function renderCountriesStrip(car) {
+  const strip = document.getElementById('countries-strip');
+  // Находим текущую страну по km
+  let currentCountry = '';
+  for (let i = ROUTE.length - 1; i >= 0; i--) {
+    if (ROUTE[i].km <= car.kmDone) { currentCountry = ROUTE[i].country; break; }
+  }
+
+  strip.innerHTML = COUNTRIES.map(c => {
+    const countryKm = c.km;
+    const isPassed  = countryKm < car.kmDone;
+    const isActive  = c.country === currentCountry;
+    const cls = isActive ? 'active' : isPassed ? 'passed' : 'pending';
+    return `<div class="country-chip ${cls}">${c.country}</div>`;
+  }).join('');
+}
+
+function renderTimeline(car) {
+  document.getElementById('timeline').innerHTML = car.statuses.map((s, i) => {
+    const isLast = i === car.statuses.length - 1;
+    const dot = s.state === 'done' ? '✓' : s.state === 'active' ? '▶' : '○';
+    return `
+      <div class="tl-item ${s.state}">
+        <div class="tl-left">
+          <div class="tl-dot ${s.state}">${dot}</div>
+          ${!isLast ? '<div class="tl-line"></div>' : ''}
+        </div>
+        <div class="tl-body">
+          <div class="tl-title">${s.title}</div>
+          <div class="tl-sub">${s.sub}</div>
+          <div class="tl-date">${s.date}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════════════
+   РЕНДЕР АВТОПАРКА
+════════════════════════════════════════════ */
+function renderCarsList() {
+  // Клиент видит только свои машины
+  const visibleCars = currentUser?.type === 'client'
+    ? CARS.filter(c => currentUser.carIds.includes(c.id))
+    : CARS;
+
+  document.getElementById('cars-sub').textContent =
+    `${visibleCars.length} автомобил${visibleCars.length===1?'ь':visibleCars.length<5?'я':'ей'} в доставке`;
+
+  const statusMap = {
+    transit:{label:'В пути',cls:'b-blue'},
+    customs:{label:'Таможня',cls:'b-orange'},
+    loaded: {label:'Погружен',cls:'b-gray'},
+    arrived:{label:'Прибыл',cls:'b-green'},
+  };
+
+  document.getElementById('cars-list').innerHTML = visibleCars.map(car => {
+    const pct = Math.min(100, Math.round((car.kmDone / TOTAL_KM) * 100));
+    const st  = statusMap[car.status] || statusMap.transit;
+    const sel = car.id === currentCarId;
+    return `
+      <div class="car-card ${sel?'sel':''}" onclick="selectCar(${car.id})">
+        <div class="cc-top">
+          <div>
+            <div class="cc-name">${car.name}</div>
+            <div class="cc-vin">${car.vin}</div>
+          </div>
+          <span class="badge ${st.cls}">${st.label}</span>
+        </div>
+        <div style="font-size:13px;color:var(--hint);margin-bottom:8px">👤 ${car.client} &nbsp;·&nbsp; 📅 ETA: ${car.eta}</div>
+        <div class="cc-pr">
+          <span>📍 ${car.city}</span>
+          <span>${car.kmDone.toLocaleString('ru')} / ${TOTAL_KM.toLocaleString('ru')} км</span>
+        </div>
+        <div class="cc-pb"><div class="cc-pf" style="width:${pct}%"></div></div>
+        <div class="cc-bot">
+          <span class="badge b-blue">${pct}% пройдено</span>
+          ${car.year ? `<span class="badge b-gray">${car.year} г.</span>` : ''}
+          ${car.color ? `<span class="badge b-purple">${car.color}</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function selectCar(id) {
+  currentCarId = id;
+  renderCarsList();
+  renderTracker();
+  showToast(`✅ ${CARS.find(c=>c.id===id)?.name}`);
+  setTimeout(() => goPage('tracker', document.getElementById('tb-tracker')), 250);
+}
+
+/* ════════════════════════════════════════════
+   РЕНДЕР ADMIN
+════════════════════════════════════════════ */
+function renderAdmin() {
+  // Статистика
+  document.getElementById('s-active').textContent = CARS.length;
+  document.getElementById('s-km').textContent = CARS.reduce((s,c)=>s+c.kmDone,0).toLocaleString('ru');
+  document.getElementById('s-cars-list').innerHTML = CARS.map(car => {
+    const pct = Math.min(100, Math.round((car.kmDone / TOTAL_KM)*100));
+    return `
+      <div class="flex-bc" style="padding:10px 0;border-bottom:1px solid var(--card-border)">
+        <div>
+          <div style="font-weight:700;font-size:14px">${car.name}</div>
+          <div style="font-size:12px;color:var(--hint);margin-top:2px">${car.client} · ${car.city}</div>
+        </div>
+        <span class="badge b-blue">${pct}%</span>
+      </div>`;
+  }).join('');
+
+  // Селекты авто
+  const carOpts = CARS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  ['e-select','st-select','nt-car'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = carOpts;
+  });
+
+  loadEdit();
+  renderStEditor();
+  renderUsers();
+  renderNotifyHistory();
+
+  const ntCar = document.getElementById('nt-car');
+  if (ntCar) ntCar.innerHTML = CARS.map(c=>`<option value="${c.id}">${c.name} — ${c.client}</option>`).join('');
+}
+
+/* ── Редактировать ── */
+function loadEdit() {
+  const id  = parseInt(document.getElementById('e-select')?.value);
+  const car = CARS.find(c=>c.id===id);
+  if (!car) return;
+  setV('e-name',   car.name);
+  setV('e-vin',    car.vinFull);
+  setV('e-client', car.client);
+  setV('e-eta',    car.etaDate);
+  setV('e-km',     car.kmDone);
+  setV('e-city',   car.city);
+  setV('e-status', car.status);
+  setV('e-tgid',   car.clientTgId||'');
+}
+
+function saveEdit() {
+  const id  = parseInt(document.getElementById('e-select').value);
+  const car = CARS.find(c=>c.id===id);
+  if (!car) return;
+  const newKm = parseInt(document.getElementById('e-km').value)||car.kmDone;
+  car.name        = getV('e-name')   || car.name;
+  car.vinFull     = getV('e-vin')    || car.vinFull;
+  car.vin         = car.vinFull.slice(0,11)+'•••••';
+  car.client      = getV('e-client') || car.client;
+  car.etaDate     = getV('e-eta')    || car.etaDate;
+  car.eta         = fmtDate(car.etaDate);
+  car.kmDone      = Math.min(newKm, TOTAL_KM);
+  car.city        = getV('e-city')   || car.city;
+  car.status      = getV('e-status') || car.status;
+  car.clientTgId  = getV('e-tgid')   || car.clientTgId;
+  persist();
+  renderTracker(); renderCarsList(); renderAdmin();
+  showToast(`✅ ${car.name} обновлён`);
+}
+
+function deleteCar() {
+  const id = parseInt(document.getElementById('e-select').value);
+  const car = CARS.find(c=>c.id===id);
+  if (!car) return;
+  if (!confirm(`Удалить ${car.name}?`)) return;
+  CARS = CARS.filter(c=>c.id!==id);
+  if (currentCarId === id) currentCarId = CARS[0]?.id || 0;
+  persist(); renderTracker(); renderCarsList(); renderAdmin();
+  showToast(`🗑 ${car.name} удалён`);
+}
+
+/* ── Добавить авто ── */
+function addCar() {
+  const name   = getV('n-name').trim();
+  const vin    = getV('n-vin').trim();
+  const client = getV('n-client').trim();
+  const tgid   = getV('n-tgid').trim();
+  const etaD   = getV('n-eta');
+  const year   = getV('n-year').trim();
+  const color  = getV('n-color').trim();
+  const km     = parseInt(getV('n-km')) || 0;
+
+  if (!name||!vin||!client||!etaD) { showToast('⚠️ Заполните обязательные поля'); return; }
+  if (vin.length !== 17) { showToast('⚠️ VIN должен быть 17 символов'); return; }
+
+  const newCar = {
+    id: Date.now(), name,
+    vinFull:vin, vin:vin.slice(0,11)+'•••••',
+    client, clientTgId:tgid,
+    eta:fmtDate(etaD), etaDate:etaD,
+    kmDone:Math.min(km, TOTAL_KM), city:'Берлин, Германия',
+    status:'loaded', year, color,
+    statuses:[
+      {title:"Принято в Германии",     sub:"Берлин, склад",                state:"done",    date:fmtDate(etaD)+" (добавлено)",icon:"✅"},
+      {title:"Погрузка на автовоз",    sub:"Ожидается",                    state:"pending", date:"—",                         icon:"📦"},
+      {title:"Транзит: Прага — Вена",  sub:"Чехия → Австрия → Венгрия",   state:"pending", date:"—",                         icon:"🚛"},
+      {title:"Транзит: Бухарест",      sub:"Румыния → Болгария",           state:"pending", date:"—",                         icon:"🚛"},
+      {title:"Транзит: Стамбул",       sub:"Турция",                       state:"pending", date:"—",                         icon:"🚛"},
+      {title:"Транзит: Тбилиси",       sub:"Грузия",                       state:"pending", date:"—",                         icon:"🇬🇪"},
+      {title:"КПП Верхний Ларс",       sub:"Граница Грузия — Россия",      state:"pending", date:"—",                         icon:"🛃"},
+      {title:"Прибытие в Москву",      sub:"Склад ��ременного хранения",    state:"pending", date:fmtDate(etaD),               icon:"🏁"},
+    ]
+  };
+
+  CARS.push(newCar);
+
+  // Добавляем клиента в список доступа
+  if (tgid && !CLIENTS.find(c=>c.tgId===tgid)) {
+    CLIENTS.push({ tgId:tgid, name:client });
+    saveStorage('ar_clients', CLIENTS);
+  }
+
+  ['n-name','n-vin','n-client','n-tgid','n-eta','n-year','n-color','n-km'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+
+  persist(); renderCarsList(); renderAdmin();
+  showToast(`🚗 ${name} добавлен в систему`);
+}
+
+/* ── Статусы ── */
+function renderStEditor() {
+  const id  = parseInt(document.getElementById('st-select')?.value);
+  const car = CARS.find(c=>c.id===id);
+  const el  = document.getElementById('st-editor');
+  if (!car||!el) return;
+  el.innerHTML = car.statuses.map((s,i) => `
+    <div class="st-item">
+      <span class="st-ico">${s.icon}</span>
+      <div class="st-info">
+        <div class="st-name">${s.title}</div>
+        <div class="st-date">${s.date}</div>
+      </div>
+      <button class="toggle ${s.state==='done'?'on':''}" onclick="toggleSt(${id},${i},this)"></button>
+    </div>`).join('');
+}
+
+function toggleSt(carId, idx, btn) {
+  const car = CARS.find(c=>c.id===carId);
+  if (!car) return;
+  const s = car.statuses[idx];
+  s.state = s.state === 'done' ? 'pending' : 'done';
+  btn.classList.toggle('on', s.state === 'done');
+  recalcActive(car);
+  renderStEditor();
+}
+
+function recalcActive(car) {
+  car.statuses.forEach(s => { if (s.state === 'active') s.state = 'pending'; });
+  for (let i = 0; i < car.statuses.length; i++) {
+    if (car.statuses[i].state === 'pending') {
+      if (i === 0 || car.statuses[i-1].state === 'done') {
+        car.statuses[i].state = 'active'; break;
+      }
+    }
+  }
+}
+
+function saveStatuses() {
+  persist(); renderTracker(); renderCarsList();
+  showToast('✅ Статусы сохранены');
+}
+
+function updateStDate() {
+  const carId = parseInt(document.getElementById('st-select')?.value);
+  const idx   = parseInt(document.getElementById('dt-status').value);
+  const date  = getV('dt-date');
+  if (!date) { showToast('⚠️ Выберите дату'); return; }
+  const car = CARS.find(c=>c.id===carId);
+  if (!car || !car.statuses[idx]) return;
+  car.statuses[idx].date = fmtDate(date);
+  persist(); renderStEditor(); renderTracker();
+  showToast('📅 Дата обновлена');
+}
+
+/* ── Пользователи ── */
+function renderUsers() {
+  // Список администраторов
+  document.getElementById('admin-list').innerHTML = ADMINS.map((a,i) => `
+    <div class="user-item">
+      <div class="user-ava admin">👑</div>
+      <div class="user-info">
+        <div class="user-name">${a.name}</div>
+        <div class="user-id">ID: ${a.id}</div>
+      </div>
+      ${i > 0 ? `<button class="btn btn-danger btn-sm" onclick="removeAdmin(${i})">Удалить</button>` : '<span class="badge b-purple">Главный</span>'}
+    </div>`).join('');
+
+  // Список клиентов
+  const allClientIds = [...new Set(CARS.map(c=>c.clientTgId).filter(Boolean))];
+  document.getElementById('clients-list').innerHTML = allClientIds.length ? allClientIds.map(tid => {
+    const cars  = CARS.filter(c=>c.clientTgId===tid);
+    const cname = cars[0]?.client || 'Клиент';
+    return `
+      <div class="user-item">
+        <div class="user-ava">👤</div>
+        <div class="user-info">
+          <div class="user-name">${cname}</div>
+          <div class="user-id">TG ID: ${tid} · ${cars.length} авто</div>
+        </div>
+        <span class="badge b-green">Клиент</span>
+      </div>`;
+  }).join('') : `<div style="color:var(--hint);font-size:14px;padding:12px 0">Нет клиентов</div>`;
+}
+
+function addAdmin() {
+  const id   = getV('new-admin-id').trim();
+  const name = getV('new-admin-name').trim();
+  if (!id || !name) { showToast('⚠️ Введите ID и имя'); return; }
+  if (ADMINS.find(a=>a.id===id)) { showToast('⚠️ Этот ID уже есть'); return; }
+  ADMINS.push({ id, name });
+  saveStorage('ar_admins', ADMINS);
+  setV('new-admin-id',''); setV('new-admin-name','');
+  renderUsers();
+  showToast(`✅ ${name} добавлен как администратор`);
+}
+
+function removeAdmin(idx) {
+  ADMINS.splice(idx, 1);
+  saveStorage('ar_admins', ADMINS);
+  renderUsers();
+  showToast('Администратор удалён');
+}
+
+/* ── Уведомления ── */
+function sendNotify() {
+  const type = document.getElementById('nt-type')?.value;
+  const text = getV('nt-text').trim();
+  if (!text) { showToast('⚠️ Введите текст'); return; }
+  notifyHistory.unshift({
+    type, text,
+    time: new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})
+  });
+  setV('nt-text','');
+  renderNotifyHistory();
+  showToast('📤 Уведомление отправлено');
+  if (tg) tg.sendData?.(JSON.stringify({action:'notify',type,text}));
+}
+
+function renderNotifyHistory() {
+  const el = document.getElementById('nt-history');
+  if (!el) return;
+  el.innerHTML = notifyHistory.length
+    ? notifyHistory.map(n=>`
+        <div class="notif-item">
+          <div class="notif-ico">🔔</div>
+          <div>
+            <div class="notif-txt">${n.type}</div>
+            <div class="notif-sub">${n.text}</div>
+            <div class="notif-time">${n.time}</div>
+          </div>
+        </div>`).join('')
+    : `<div style="color:var(--hint);font-size:14px;padding:12px 0;text-align:center">Нет уведомлений</div>`;
+}
+
+/* ════════════════════════════════════════════
+   НАВИГАЦИЯ
+════════════════════════════════════════════ */
+function goPage(name, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+  if (name==='admin') renderAdmin();
+  if (name==='cars')  renderCarsList();
+  if (name==='tracker') setTimeout(()=>map?.invalidateSize(),200);
+}
+
+function aTab(name, el) {
+  document.querySelectorAll('.a-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.a-panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('ap-'+name).classList.add('active');
+}
+
+/* ════════════════════════════════════════════
+   МЕНЕДЖЕР
+════════════════════════════════════════════ */
+function contactMgr() {
+  if (tg?.initData) tg.sendData?.(JSON.stringify({action:'contact_manager',carId:currentCarId}));
+  else showToast('💬 Открываем чат с менеджером...');
+}
+
+/* ════════════════════════════════════════════
+   МОДАЛКА
+════════════════════════════════════════════ */
+function closeModal(e) {
+  if (e.target===e.currentTarget) document.getElementById('modal-overlay').classList.remove('open');
+}
+
+/* ════════════════════════════════════════════
+   ТОСТ
+════════════════════════════════════════════ */
+let toastT;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+/* ════════════════════════════════════════════
+   УТИЛИТЫ
+════════════════════════════════════════════ */
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+function getV(id) { return document.getElementById(id)?.value || ''; }
+function setV(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
+function persist() {
+  saveStorage('ar_cars', CARS);
+  saveStorage('ar_admins', ADMINS);
+}
+
+/* ════════════════════════════════════════════
+   ИНИЦИАЛИЗАЦИЯ
+════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Пробуем авто-вход по TG ID
+  if (!autoAuthByTgId()) {
+    // Остаёмся на экране авторизации
+    // Предзаполняем TG ID если знаем
+    if (TG_USER_ID) setV('auth-input', TG_USER_ID);
+  }
+});
+</script>
 </body>
 </html>
