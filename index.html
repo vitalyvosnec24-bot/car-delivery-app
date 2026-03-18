@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Критически важен для корректного отображения на мобильных устройствах -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Доставка авто — BMW X5</title>
+
+  <!-- ===== Telegram Mini App SDK ===== -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- ===== Leaflet.js (карта) — стабильная версия 1.9.4 ===== -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* ============================================================
+       RESET & БАЗОВЫЕ СТИЛИ
+    ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      /* --- Цвета из темы Telegram (автоматически подставляются SDK) --- */
+      --bg:          var(--tg-theme-bg-color,          #FFFFFF);
+      --bg-secondary:var(--tg-theme-secondary-bg-color,#F2F2F7);
+      --text:        var(--tg-theme-text-color,         #1C1C1E);
+      --hint:        var(--tg-theme-hint-color,         #8E8E93);
+      --link:        var(--tg-theme-link-color,         #007AFF);
+      --btn:         var(--tg-theme-button-color,       #007AFF);
+      --btn-text:    var(--tg-theme-button-text-color,  #FFFFFF);
+
+      /* --- Кастомная палитра --- */
+      --success:     #34C759;
+      --active:      #007AFF;
+      --pending:     #C7C7CC;
+      --card-radius: 18px;
+      --shadow:      0 4px 24px rgba(0,0,0,0.08);
+      --font:        -apple-system, "SF Pro Display", "Roboto", "Helvetica Neue", sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-secondary);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ============================================================
+       СКРОЛЛ-КОНТЕЙНЕР (весь контент скроллится, кнопка закреплена)
+    ============================================================ */
+    .page-wrapper {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding-bottom: 88px; /* место под кнопку */
+    }
+
+    /* ============================================================
+       ШАПКА (HEADER)
+    ============================================================ */
+    .header {
+      background: var(--bg);
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    /* Строка "Статус" */
+    .header__status-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--active);
+      animation: pulse 1.8s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .status-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--active);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* Марка и модель */
+    .header__car-name {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    /* VIN */
+    .header__vin {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--hint);
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+      font-family: "SF Mono", "Courier New", monospace;
+    }
+
+    /* Маршрутные бейджи */
+    .route-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .badge--origin {
+      background: rgba(52,199,89,0.12);
+      color: #1E8A40;
+    }
+
+    .badge--destination {
+      background: rgba(0,122,255,0.12);
+      color: #0055CC;
+    }
+
+    /* Тёмная тема — инвертируем цвета бейджей */
+    @media (prefers-color-scheme: dark) {
+      .badge--origin      { color: #4CD964; }
+      .badge--destination { color: #5AC8FA; }
+    }
+
+    .route-arrow {
+      color: var(--hint);
+      font-size: 14px;
+    }
+
+    /* ============================================================
+       СЕКЦИИ (общий padding и заголовки)
+    ============================================================ */
+    .section {
+      padding: 16px 16px 0;
+    }
+
+    .section__title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--hint);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    /* ============================================================
+       КАРТОЧКА (общий стиль для блоков)
+    ============================================================ */
+    .card {
+      background: var(--bg);
+      border-radius: var(--card-radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       КАРТА
+    ============================================================ */
+    .map-container {
+      position: relative;
+    }
+
+    #map {
+      height: 270px;
+      width: 100%;
+      /* Предотвращаем конфликт скролла страницы и зума карты на мобилках */
+      touch-action: none;
+    }
+
+    /* Плашка поверх карты с текущей локацией */
+    .map-overlay-badge {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 100px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1C1C1E;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* ============================================================
+       ИНФО-ПЛИТКИ (ETA, расстояние)
+    ============================================================ */
+    .info-tiles {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 16px 16px 0;
+    }
+
+    .tile {
+      background: var(--bg);
+      border-radius: var(--card-radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .tile__label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--hint);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .tile__value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.1;
+    }
+
+    .tile__unit {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--hint);
+      margin-top: 2px;
+    }
+
+    /* ============================================================
+       ТАЙМЛАЙН СТАТУСОВ
+    ============================================================ */
+    .timeline {
+      padding: 4px 0 4px 0;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 14px;
+      padding: 0 16px;
+      position: relative;
+    }
+
+    /* Вертикальная линия между чекпоинтами */
+    .timeline-item:not(:last-child) .timeline-line {
+      position: absolute;
+      left: 31px; /* 16px padding + 7px (половина иконки ~14px) + 8px icon center */
+      top: 32px;
+      bottom: -4px;
+      width: 2px;
+      background: var(--pending);
+      z-index: 0;
+    }
+
+    /* Линия для выполненных — зелёная */
+    .timeline-item.done:not(:last-child) .timeline-line {
+      background: var(--success);
+    }
+
+    /* Линия до активного — зелёная */
+    .timeline-item.active:not(:last-child) .timeline-line {
+      background: linear-gradient(to bottom, var(--active), var(--pending));
+    }
+
+    /* Иконка-индикатор */
+    .timeline-icon {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      z-index: 1;
+      margin-top: 14px;
+    }
+
+    .timeline-item.done .timeline-icon {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .timeline-item.active .timeline-icon {
+      background: var(--active);
+      color: #fff;
+      box-shadow: 0 0 0 5px rgba(0,122,255,0.2);
+      animation: pulseIcon 1.8s ease-in-out infinite;
+    }
+
+    .timeline-item.pending .timeline-icon {
+      background: rgba(0,0,0,0.06);
+      color: var(--hint);
+    }
+
+    /* Текстовый блок */
+    .timeline-content {
+      padding: 14px 0 18px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      flex: 1;
+    }
+
+    .timeline-item:last-child .timeline-content {
+      border-bottom: none;
+    }
+
+    .timeline-content__title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .timeline-item.pending .timeline-content__title {
+      color: var(--hint);
+    }
+
+    .timeline-content__subtitle {
+      font-size: 13px;
+      color: var(--hint);
+      margin-top: 2px;
+    }
+
+    .timeline-item.active .timeline-content__subtitle {
+      color: var(--active);
+      font-weight: 500;
+    }
+
+    /* ============================================================
+       ЗАКРЕПЛЁННАЯ КНОПКА ВНИЗУ
+    ============================================================ */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: 12px 16px;
+      /* Безопасная зона для iPhone с "чёлкой" */
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      background: var(--bg);
+      border-top: 1px solid rgba(0,0,0,0.06);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .btn-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 16px;
+      background: var(--btn);
+      color: var(--btn-text);
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--font);
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+      box-shadow: 0 4px 16px rgba(0,122,255,0.35);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-main:active {
+      transform: scale(0.97);
+      opacity: 0.88;
+      box-shadow: 0 2px 8px rgba(0,122,255,0.2);
+    }
+
+    /* ============================================================
+       АНИМАЦИИ
+    ============================================================ */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    @keyframes pulseIcon {
+      0%, 100% { box-shadow: 0 0 0 5px rgba(0,122,255,0.2); }
+      50%       { box-shadow: 0 0 0 9px rgba(0,122,255,0.08); }
+    }
+
+    /* ============================================================
+       НИЖНИЙ ОТСТУП (чтобы кнопка не перекрывала последний элемент)
+    ============================================================ */
+    .bottom-spacer {
+      height: 24px;
+    }
+
+    /* ============================================================
+       СТИЛИ КАСТОМНОГО МАРКЕРА LEAFLET
+    ============================================================ */
+    .truck-marker {
+      font-size: 28px;
+      line-height: 1;
+      /* Центрируем эмодзи относительно точки */
+      margin-left: -14px;
+      margin-top: -14px;
+      /* Анимация лёгкого покачивания */
+      animation: truckBob 2s ease-in-out infinite;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
+    }
+
+    @keyframes truckBob {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-4px); }
+    }
+
+    .city-marker {
+      font-size: 16px;
+      line-height: 1;
+      margin-left: -8px;
+      margin-top: -8px;
+    }
+
+    /* ============================================================
+       ТЁМНАЯ ТЕМА — переопределение некоторых цветов
+       (Telegram SDK заменяет CSS-переменные автоматически,
+        но здесь подстрахуемся через media query)
+    ============================================================ */
+    @media (prefers-color-scheme: dark) {
+      .map-overlay-badge {
+        background: rgba(30,30,30,0.92);
+        color: #FFFFFF;
+      }
+      .timeline-item.pending .timeline-icon {
+        background: rgba(255,255,255,0.08);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ============================================================
+       ШАПКА
+  ============================================================ -->
+  <header class="header">
+
+    <!-- Строка "Активная доставка" -->
+    <div class="header__status-row">
+      <span class="status-dot"></span>
+      <span class="status-label">Активная доставка</span>
+    </div>
+
+    <!-- Марка и модель -->
+    <h1 class="header__car-name">BMW X5 xDrive40d</h1>
+
+    <!-- VIN (частично скрыт для безопасности) -->
+    <p class="header__vin">VIN: WBAJU82040X•••••</p>
+
+    <!-- Бейджи маршрута -->
+    <div class="route-badges">
+      <span class="badge badge--origin">🇩🇪 Берлин</span>
+      <span class="route-arrow">→</span>
+      <span class="badge badge--destination">🇷🇺 Москва</span>
+    </div>
+
+  </header>
+
+  <!-- ============================================================
+       КАРТА
+  ============================================================ -->
+  <div class="section" style="padding-top: 16px;">
+    <p class="section__title">📍 Маршрут и местоположение</p>
+    <div class="card map-container">
+      <!-- Плашка поверх карты -->
+      <div class="map-overlay-badge">🚚 Варшава, Польша · обновлено 12 мин назад</div>
+      <!-- Контейнер карты Leaflet -->
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ИНФО-ПЛИТКИ
+  ============================================================ -->
+  <div class="info-tiles">
+
+    <div class="tile">
+      <p class="tile__label">📅 Прибытие ETA</p>
+      <p class="tile__value">22 Мар</p>
+      <p class="tile__unit">ориентировочно</p>
+    </div>
+
+    <div class="tile">
+      <p class="tile__label">🛣 Пройдено</p>
+      <p class="tile__value">1 140</p>
+      <p class="tile__unit">из ~1 900 км</p>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       ТАЙМЛАЙН СТАТУСОВ
+  ============================================================ -->
+  <div class="section" style="padding-top: 20px;">
+    <p class="section__title">📋 История статусов</p>
+    <div class="card">
+      <div class="timeline">
+
+        <!-- ── Статус 1: Выполнен ── -->
+        <div class="timeline-item done">
+          <div class="timeline-line"></div>
+          <div class="timeline-icon">✓</div>
+          <div class="timeline-content">
+            <p class="timeline-content__title">Принято в Германии</p>
+            <p class="timeline-content__subtitle">Берлин · 15 марта, 10:30</p>
+          </div>
+        </div>
+
+        <!-- ── Статус 2: Выполнен ── -->
+        <div class="timeline-item done">
+          <div class="timeline-line"></div>
+          <div class="timeline-icon">✓</div>
+          <div class="timeline-content">
+            <p class="timeline-content__title">Погрузка на автовоз</p>
+            <p class="timeline-content__subtitle">Берлин, терминал A4 · 16 марта, 09:15</p>
+          </div>
+        </div>
+
+        <!-- ── Статус 3: Активный ── -->
+        <div class="timeline-item active">
+          <div class="timeline-line"></div>
+          <div class="timeline-icon">▶</div>
+          <div class="timeline-content">
+            <p class="timeline-content__title">Транзит по Европе</p>
+            <p class="timeline-content__subtitle">В пути · ориент. прохождение границы: 19 марта</p>
+          </div>
+        </div>
+
+        <!-- ── Статус 4: Ожидается ── -->
+        <div class="timeline-item pending">
+          <div class="timeline-line"></div>
+          <div class="timeline-icon">◌</div>
+          <div class="timeline-content">
+            <p class="timeline-content__title">Таможенное оформление (РБ)</p>
+            <p class="timeline-content__subtitle">Брест, таможенный пост</p>
+          </div>
+        </div>
+
+        <!-- ── Статус 5: Ожидается ── -->
+        <div class="timeline-item pending">
+          <!-- Последний элемент — нет разделителя -->
+          <div class="timeline-icon">◌</div>
+          <div class="timeline-content">
+            <p class="timeline-content__title">Прибытие в Москву</p>
+            <p class="timeline-content__subtitle">Склад временного хранения, МКАД</p>
+          </div>
+        </div>
+
+      </div><!-- /.timeline -->
+    </div><!-- /.card -->
+  </div>
+
+  <div class="bottom-spacer"></div>
+
+</div><!-- /.page-wrapper -->
+
+<!-- ============================================================
+     ЗАКРЕПЛЁННАЯ КНОПКА
+============================================================ -->
+<div class="bottom-bar">
+  <button class="btn-main" id="contactBtn">
+    💬 Связаться с менеджером
+  </button>
+</div>
+
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+  /* ============================================================
+     1. ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP
+  ============================================================ */
+  const tg = window.Telegram?.WebApp;
+
+  if (tg) {
+    // Разворачиваем приложение на полный экран
+    tg.expand();
+    // Устанавливаем цвет статус-бара (для iOS)
+    tg.setHeaderColor?.('bg_color');
+    tg.setBackgroundColor?.('#F2F2F7');
+  }
+
+  /* ============================================================
+     2. MOCK-ДАННЫЕ МАРШРУТА
+     Координаты: Берлин → Варшава → Брест → Москва
+  ============================================================ */
+  const ROUTE_POINTS = [
+    { name: "Берлин",   lat: 52.5200, lng: 13.4050, flag: "🇩🇪" },
+    { name: "Варшава",  lat: 52.2297, lng: 21.0122, flag: "🇵🇱" },
+    { name: "Брест",    lat: 52.0978, lng: 23.7341, flag: "🇧🇾" },
+    { name: "Минск",    lat: 53.9045, lng: 27.5615, flag: "🇧🇾" },
+    { name: "Смоленск", lat: 54.7826, lng: 32.0453, flag: "🇷🇺" },
+    { name: "Москва",   lat: 55.7558, lng: 37.6176, flag: "🇷🇺" },
+  ];
+
+  // Координаты самой линии маршрута (polyline)
+  const ROUTE_LATLNGS = ROUTE_POINTS.map(p => [p.lat, p.lng]);
+
+  // Текущее положение автовоза (около Варшавы, чуть восточнее)
+  const TRUCK_POSITION = { lat: 52.21, lng: 22.35 };
+
+  /* ============================================================
+     3. ИНИЦИАЛИЗАЦИЯ КАРТЫ LEAFLET
+  ============================================================ */
+  // Инициализируем карту, центрируем приблизительно по середине маршрута
+  const map = L.map('map', {
+    center: [52.8, 26.5],
+    zoom: 5,
+    zoomControl: true,
+    scrollWheelZoom: true,
+    // Отключаем двойной тап для зума (мешает скроллу страницы)
+    doubleClickZoom: false,
+  });
+
+  // Слой тайлов OpenStreetMap (бесплатно, без API-ключа)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  /* --- Линия маршрута --- */
+  // Пунктирная линия "общий маршрут"
+  L.polyline(ROUTE_LATLNGS, {
+    color: '#C7C7CC',
+    weight: 3,
+    dashArray: '8, 8',
+    opacity: 0.7,
+  }).addTo(map);
+
+  // Сплошная синяя линия "пройденный участок" (Берлин → текущая позиция)
+  const passedRoute = [
+    [ROUTE_POINTS[0].lat, ROUTE_POINTS[0].lng],
+    [ROUTE_POINTS[1].lat, ROUTE_POINTS[1].lng], // Варшава
+    [TRUCK_POSITION.lat,  TRUCK_POSITION.lng],
+  ];
+  L.polyline(passedRoute, {
+    color: '#007AFF',
+    weight: 4,
+    opacity: 1,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(map);
+
+  /* --- Маркер автовоза (текущая позиция) --- */
+  // Создаём кастомную иконку из эмодзи
+  const truckIcon = L.divIcon({
+    className: '',           // убираем дефолтный белый фон Leaflet
+    html: '<div class="truck-marker">🚚</div>',
+    iconSize:   [32, 32],
+    iconAnchor: [16, 16],    // точка привязки — центр иконки
+    popupAnchor:[0, -20],
+  });
+
+  L.marker([TRUCK_POSITION.lat, TRUCK_POSITION.lng], { icon: truckIcon })
+    .addTo(map)
+    .bindPopup(
+      '<strong>Автовоз #AT-2847</strong><br>Варшава, Польша<br><span style="color:#007AFF;font-size:12px">В пути → Москва</span>',
+      { closeButton: false, offset: [0, -10] }
+    )
+    .openPopup();
+
+  /* --- Маркеры городов (начало и конец маршрута) --- */
+  const createCityIcon = (emoji) => L.divIcon({
+    className: '',
+    html: `<div class="city-marker">${emoji}</div>`,
+    iconSize:   [24, 24],
+    iconAnchor: [12, 12],
+  });
+
+  // Берлин — старт
+  L.marker([ROUTE_POINTS[0].lat, ROUTE_POINTS[0].lng], { icon: createCityIcon('🟢') })
+    .addTo(map)
+    .bindTooltip('🇩🇪 Берлин (старт)', { permanent: false, direction: 'top' });
+
+  // Москва — финиш
+  L.marker([ROUTE_POINTS[5].lat, ROUTE_POINTS[5].lng], { icon: createCityIcon('🏁') })
+    .addTo(map)
+    .bindTooltip('🇷🇺 Москва (финиш)', { permanent: false, direction: 'top' });
+
+  // Брест — таможня
+  L.marker([ROUTE_POINTS[2].lat, ROUTE_POINTS[2].lng], { icon: createCityIcon('🔵') })
+    .addTo(map)
+    .bindTooltip('🇧🇾 Брест (таможня)', { permanent: false, direction: 'top' });
+
+  /* --- Подгоняем вид карты под весь маршрут с отступами --- */
+  map.fitBounds(ROUTE_LATLNGS, { padding: [24, 24] });
+
+  // Небольшой хак: принудительно перерисовываем карту после загрузки страницы,
+  // чтобы тайлы корректно отобразились (актуально для WebView Telegram)
+  setTimeout(() => map.invalidateSize(), 300);
+
+  /* ============================================================
+     4. ОБРАБОТЧИК КНОПКИ "СВЯЗАТЬСЯ С МЕНЕДЖЕРОМ"
+  ============================================================ */
+  document.getElementById('contactBtn').addEventListener('click', () => {
+    if (tg && tg.initData) {
+      // Если запущено в Telegram — отправляем данные боту
+      // или открываем ссылку на чат с менеджером
+      tg.sendData(JSON.stringify({
+        action: 'contact_manager',
+        car:    'BMW X5 xDrive40d',
+        vin:    'WBAJU82040X*****',
+      }));
+    } else {
+      // Fallback для браузера (демо-режим)
+      showToast('💬 Открываем чат с вашим менеджером...');
+    }
+  });
+
+  /* ============================================================
+     5. TOAST-УВЕДОМЛЕНИЕ (замена alert для красивого UX)
+  ============================================================ */
+  function showToast(message) {
+    // Если уже есть — удаляем
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+
+    // Стили тоста через JS (чтобы не добавлять лишний CSS)
+    Object.assign(toast.style, {
+      position:       'fixed',
+      bottom:         'calc(90px + env(safe-area-inset-bottom))',
+      left:           '50%',
+      transform:      'translateX(-50%) translateY(20px)',
+      background:     'rgba(28,28,30,0.92)',
+      color:          '#FFFFFF',
+      padding:        '10px 20px',
+      borderRadius:   '100px',
+      fontSize:       '14px',
+      fontWeight:     '500',
+      fontFamily:     '-apple-system, Roboto, sans-serif',
+      backdropFilter: 'blur(10px)',
+      zIndex:         '9999',
+      whiteSpace:     'nowrap',
+      boxShadow:      '0 4px 20px rgba(0,0,0,0.25)',
+      opacity:        '0',
+      transition:     'all 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+      pointerEvents:  'none',
+    });
+
+    document.body.appendChild(toast);
+
+    // Анимация появления
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(-50%) translateY(0px)';
+      });
+    });
+
+    // Автоскрытие через 3 секунды
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(10px)';
+      setTimeout(() => toast.remove(), 350);
+    }, 3000);
+  }
+</script>
+
+</body>
+</html>
